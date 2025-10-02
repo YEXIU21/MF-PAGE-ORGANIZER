@@ -1,0 +1,45 @@
+{
+    "default_settings": {
+        "ocr_confidence_threshold": 85,
+        "enable_preprocessing": true,
+        "enable_memory": true,
+        "output_format": "pdf",
+        "temp_cleanup": true
+    },
+    "preprocessing": {
+        "denoise": true,
+        "deskew": true,
+        "contrast_enhance": false,
+        "watermark_reduction": false
+    },
+    "ocr": {
+        "language": "eng",
+        "engine_mode": 3,
+        "page_segmentation": 6,
+        "enable_handwriting": false
+    },
+    "numbering": {
+        "detect_arabic": true,
+        "detect_roman": true,
+        "detect_hybrid": true,
+        "detect_hierarchical": true,
+        "priority_order": ["page", "chapter", "section"]
+    },
+    "content_analysis": {
+        "text_continuity_weight": 0.4,
+        "heading_sequence_weight": 0.3,
+        "reference_weight": 0.3,
+        "min_confidence_for_auto_order": 90
+    },
+    "output": {
+        "create_pdf": true,
+        "create_images": false,
+        "create_metadata_log": true,
+        "preserve_original_quality": true
+    },
+    "paths": {
+        "temp_dir": "data/temp",
+        "memory_dir": "data/memory",
+        "models_dir": "data/models"
+    }
+}
