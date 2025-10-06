@@ -39,7 +39,8 @@ infinity.py
 cache/
 *.log
 *.pkl
-
+zzzzzzzzzzz_infinity
+zzz_screenshots
 # OS
 .DS_Store
 Thumbs.db
