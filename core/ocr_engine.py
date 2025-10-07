@@ -19,6 +19,7 @@ from utils.logger import ProcessLogger
 from core.smart_cache import SmartCache
 from core.input_handler import PageInfo
 from core.advanced_number_detector import AdvancedNumberDetector
+from core.advanced_image_analyzer import AdvancedImageAnalyzer
 
 @dataclass
 class DetectedNumber:
@@ -62,7 +63,7 @@ class OCREngine:
         'section_number': r'\b(\d+)\.(\d+)\b'
     }
     
-    def __init__(self, logger: Optional[ProcessLogger] = None):
+    def __init__(self, logger: Optional[ProcessLogger] = None, ai_learning=None):
         self.logger = logger
         self.config = config
         self.tesseract_available = self._check_tesseract()
@@ -70,8 +71,12 @@ class OCREngine:
         # Initialize smart cache
         self.smart_cache = SmartCache(logger)
         
-        # Initialize advanced number detector (AI-like intelligence)
-        self.advanced_detector = AdvancedNumberDetector(logger)
+        # Initialize advanced image analyzer with AI learning (ADAPTIVE)
+        # This creates the EasyOCR reader
+        self.advanced_analyzer = AdvancedImageAnalyzer(logger, ai_learning)
+        
+        # Initialize advanced number detector with EasyOCR from analyzer (AI-like intelligence)
+        self.advanced_detector = AdvancedNumberDetector(logger, self.advanced_analyzer.ocr_reader)
         
         # Initialize embedded OCR
         self.embedded_ocr = None
@@ -184,8 +189,9 @@ class OCREngine:
         
         try:
             # Check cache first (AI memory)
+            # CACHE KEY: v20_adaptive - SMART adaptive upscaling (2x→3x→5x)
             image_hash = self.smart_cache.get_image_hash(str(page_info.file_path))
-            cached_result = self.smart_cache.get_cached_result(image_hash, 'ocr')
+            cached_result = self.smart_cache.get_cached_result(image_hash, 'ocr_v20_adaptive')
             
             if cached_result:
                 if self.logger:
@@ -195,47 +201,69 @@ class OCREngine:
             # Load image
             image = Image.open(page_info.file_path)
             
-            if self.tesseract_available:
-                # Use Tesseract OCR
-                result = self._process_with_tesseract(image, page_info)
-            else:
-                # Use embedded OCR (no external dependencies)
-                result = self._process_with_embedded_ocr(image, page_info)
+            # CRITICAL DEBUG: Log that we're about to call advanced detector
+            if self.logger:
+                self.logger.info(f"🚀 ABOUT TO CALL ADVANCED DETECTOR for {page_info.original_name}")
+                self.logger.info(f"   Advanced detector exists: {self.advanced_detector is not None}")
+                self.logger.info(f"   Image loaded: {image.size}")
             
-            # ENHANCEMENT: Use advanced AI detection for better accuracy
-            if result.detected_numbers:
-                # Use advanced detector to verify and improve detection
-                ai_candidate = self.advanced_detector.detect_page_number(
-                    image, result.full_text, page_info.original_name
+            # PRIORITY FIX: Use advanced AI detector FIRST (corner/margin detection)
+            # This prevents content numbers from polluting the results
+            ai_candidate = self.advanced_detector.detect_page_number(
+                image, "", str(page_info.file_path)
+            )
+            
+            if self.logger:
+                self.logger.info(f"✅ ADVANCED DETECTOR RETURNED: {ai_candidate}")
+            
+            if self.logger:
+                if ai_candidate:
+                    self.logger.debug(f"🎯 Advanced detector found: {ai_candidate.number} (confidence: {ai_candidate.confidence}%)")
+                else:
+                    self.logger.debug(f"❌ Advanced detector found nothing")
+            
+            if ai_candidate and ai_candidate.confidence > 50:  # Lowered from 60 to 50
+                # AI found page number in corners/margins - USE IT!
+                if self.logger:
+                    self.logger.info(f"🤖 AI detected page {ai_candidate.number} in {ai_candidate.location}")
+                
+                # Create result with ONLY the AI-detected number (ignore content numbers)
+                ai_detected_number = DetectedNumber(
+                    text=ai_candidate.text,
+                    number_type='roman' if any(c in ai_candidate.text.lower() for c in 'ivxlcdm') else 'arabic',
+                    numeric_value=ai_candidate.number,
+                    confidence=ai_candidate.confidence,
+                    position=(0, 0, 0, 0),  # Position not used in numbering system
+                    context=f"AI: {', '.join(ai_candidate.reasoning)}"
                 )
                 
-                if ai_candidate and ai_candidate.confidence > 70:
-                    # AI found a better candidate, use it
-                    if self.logger:
-                        self.logger.debug(f"🤖 AI improved detection: page {ai_candidate.number}")
-                    
-                    # Replace or add AI-detected number
-                    ai_detected_number = DetectedNumber(
-                        text=ai_candidate.text,
-                        number_type='arabic',
-                        numeric_value=ai_candidate.number,
-                        confidence=ai_candidate.confidence,
-                        position=ai_candidate.position,
-                        context=f"AI: {', '.join(ai_candidate.reasoning)}"
-                    )
-                    
-                    # Add as first (highest priority)
-                    result.detected_numbers.insert(0, ai_detected_number)
+                result = OCRResult(
+                    page_info=page_info,
+                    full_text="",  # Don't need full text if we found page number
+                    detected_numbers=[ai_detected_number],
+                    text_blocks=[],
+                    language_confidence=ai_candidate.confidence / 100.0,
+                    processing_time=0
+                )
+            else:
+                # Fallback to basic OCR only if AI didn't find anything
+                if self.tesseract_available:
+                    result = self._process_with_tesseract(image, page_info)
+                else:
+                    result = self._process_with_embedded_ocr(image, page_info)
             
             result.processing_time = time.time() - start_time
             
-            # Save to cache for future use (AI memory)
-            self.smart_cache.save_result(image_hash, result, 'ocr', result.processing_time)
+            # Save to cache for future use (AI memory) - using new cache key
+            self.smart_cache.save_result(image_hash, result, 'ocr_v20_adaptive', result.processing_time)
             
             return result
             
         except Exception as e:
+            import traceback
             self._log_error(f"OCR failed for {page_info.original_name}: {e}")
+            if self.logger:
+                self.logger.error(f"Full traceback:\n{traceback.format_exc()}")
             
             # Return empty result
             return OCRResult(
@@ -293,20 +321,56 @@ class OCREngine:
             # Use embedded OCR engine
             full_text = self.embedded_ocr.extract_text(image)
             
-            # Detect numbers from text and filename
-            detected_numbers_data = self.embedded_ocr.detect_page_numbers(full_text, page_info.original_name)
-            
-            # Convert to DetectedNumber objects
-            detected_numbers = []
-            for num_data in detected_numbers_data:
-                detected_numbers.append(DetectedNumber(
-                    text=num_data['text'],
-                    number_type=num_data['type'],
-                    numeric_value=num_data['value'],
-                    confidence=num_data['confidence'],
-                    position=(0, 0, 100, 100),  # Approximate position
-                    context=full_text[:100]  # First 100 chars as context
-                ))
+            # Use advanced analyzer for challenging images
+            if self.config.get('ocr.use_advanced_analysis', True):
+                advanced_result = self.advanced_analyzer.analyze_image_comprehensively(
+                    image, page_info.original_name)
+                
+                if advanced_result.best_page_number and advanced_result.overall_confidence > 0.6:
+                    self._log_info(f"✨ Advanced analysis found: {advanced_result.best_page_number} "
+                                 f"(confidence: {advanced_result.overall_confidence:.1%})")
+                    
+                    # Convert advanced results to DetectedNumber objects
+                    detected_numbers = []
+                    for i, page_num in enumerate(advanced_result.page_numbers):
+                        detected_numbers.append(DetectedNumber(
+                            text=page_num,
+                            number_type='arabic' if page_num.isdigit() else 'mixed',
+                            numeric_value=int(page_num) if page_num.isdigit() else None,
+                            confidence=advanced_result.confidence_scores[i] * 100,
+                            position=advanced_result.text_positions[i] if i < len(advanced_result.text_positions) else (0, 0, 100, 30),
+                            context=f"Advanced analysis: {advanced_result.text_orientations[i] if i < len(advanced_result.text_orientations) else 'unknown'}"
+                        ))
+                else:
+                    # Fallback to standard embedded OCR
+                    detected_numbers_data = self.embedded_ocr.detect_page_numbers(full_text, page_info.original_name)
+                    
+                    # Convert to DetectedNumber objects
+                    detected_numbers = []
+                    for num_data in detected_numbers_data:
+                        detected_numbers.append(DetectedNumber(
+                            text=num_data['text'],
+                            number_type=num_data['type'],
+                            numeric_value=num_data.get('value'),
+                            confidence=num_data['confidence'],
+                            position=(0, 0, 100, 30),  # Dummy position
+                            context=num_data.get('context', '')
+                        ))
+            else:
+                # Standard embedded OCR
+                detected_numbers_data = self.embedded_ocr.detect_page_numbers(full_text, page_info.original_name)
+                
+                # Convert to DetectedNumber objects
+                detected_numbers = []
+                for num_data in detected_numbers_data:
+                    detected_numbers.append(DetectedNumber(
+                        text=num_data['text'],
+                        number_type=num_data['type'],
+                        numeric_value=num_data.get('value'),
+                        confidence=num_data['confidence'],
+                        position=(0, 0, 100, 30),  # Dummy position
+                        context=num_data.get('context', '')
+                    ))
             
             # Create basic text blocks
             text_blocks = [{

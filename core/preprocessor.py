@@ -80,20 +80,23 @@ class Preprocessor:
         # Convert PIL Image to numpy array for OpenCV operations
         cv_image = cv2.cvtColor(np.array(processed_image), cv2.COLOR_RGB2BGR)
         
+        processing_steps = []
+        rotation_angle = 0
+        
         # Step 1: Auto-rotate (fix orientation)
         if self.config.get('preprocessing.auto_rotate', False):
-            processed_image = self._auto_rotate_image(processed_image)
+            cv_image, rotation_angle = self._auto_rotate_image(cv_image)
             if rotation_angle != 0:
                 processing_steps.append(f"auto_rotate({rotation_angle}°)")
         
         # Auto crop if enabled
         if self.config.get('preprocessing.auto_crop', False):
-            processed_image = self._auto_crop_image(processed_image)
+            cv_image = self._auto_crop_image(cv_image)
             processing_steps.append("auto_crop")
         
         # Clean dark circles if enabled  
         if self.config.get('preprocessing.clean_dark_circles', False):
-            processed_image = self._clean_dark_circles(processed_image)
+            cv_image = self._clean_dark_circles(cv_image)
             processing_steps.append("clean_dark_circles")
         
         # Step 3: Deskewing
@@ -371,8 +374,8 @@ class Preprocessor:
     def _auto_crop_image(self, image):
         """Automatically crop image to remove borders and margins"""
         try:
-            # Convert PIL to OpenCV
-            cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+            # Image is already in OpenCV format (NumPy array)
+            cv_image = image if isinstance(image, np.ndarray) else cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
             
             # Apply threshold to get binary image
@@ -392,8 +395,8 @@ class Preprocessor:
                 # Get bounding rectangle
                 x, y, w, h = cv2.boundingRect(largest_contour)
                 
-                # Add small padding
-                padding = 20
+                # Add generous padding to avoid cutting content (even slightly)
+                padding = 50  # Increased from 20 to 50 pixels for safety
                 x = max(0, x - padding)
                 y = max(0, y - padding)
                 w = min(cv_image.shape[1] - x, w + 2 * padding)
@@ -402,20 +405,20 @@ class Preprocessor:
                 # Crop the image
                 cropped = cv_image[y:y+h, x:x+w]
                 
-                # Convert back to PIL
-                return Image.fromarray(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
+                # Return NumPy array (OpenCV format)
+                return cropped
             
-            return image
+            return cv_image
             
         except Exception as e:
             self.logger.warning(f"Auto crop failed: {e}")
-            return image
+            return cv_image if isinstance(image, np.ndarray) else image
     
     def _clean_dark_circles(self, image):
         """Remove dark circles and spots from scanned pages"""
         try:
-            # Convert PIL to OpenCV
-            cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+            # Image is already in OpenCV format (NumPy array)
+            cv_image = image if isinstance(image, np.ndarray) else cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
             
             # Detect dark circular regions
@@ -451,7 +454,7 @@ class Preprocessor:
                 # Inpaint dark circles
                 if np.any(mask):
                     result = cv2.inpaint(cv_image, mask, 3, cv2.INPAINT_TELEA)
-                    return Image.fromarray(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
+                    return result
             
             # Alternative: Remove small dark spots using morphological operations
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -470,20 +473,19 @@ class Preprocessor:
             
             # Inpaint spots
             if np.any(spots_mask):
-                result = cv2.inpaint(cv_image, spots_mask, 3, cv2.INPAINT_TELEA)
-                return Image.fromarray(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
+                result = cv2.inpaint(cv_image, spots_mask, 3, cv2.INPAINT_NS)
+                return result
             
-            return image
+            return cv_image
             
         except Exception as e:
-            self.logger.warning(f"Dark circle cleanup failed: {e}")
-            return image
+            self.logger.warning(f"Clean dark circles failed: {e}")
+            return cv_image if isinstance(image, np.ndarray) else image
     
     def _optimize_image_size(self, image, max_dimension=2500):
         """Optimize image size for better performance while maintaining quality"""
         try:
             width, height = image.size
-            
             # Only resize if image is very large
             if max(width, height) > max_dimension:
                 # Calculate new size maintaining aspect ratio

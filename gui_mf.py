@@ -31,6 +31,10 @@ class MFPageOrganizerApp:
         self.root = root
         self.root.title("MF Page Organizer - Smart Document Organizer")
         
+        # Theme management (will be applied after UI is built)
+        self.current_theme = "system"  # system, light, dark
+        self.detect_system_theme()
+        
         # Set window to 80% of screen size
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
@@ -61,6 +65,9 @@ class MFPageOrganizerApp:
         
         self.setup_ui()
         self.center_window()
+        
+        # Apply theme AFTER UI is built to ensure proper rendering
+        self.root.after(100, self.apply_theme)  # Delay 100ms to ensure UI is fully rendered
     
     def center_window(self):
         """Center the window on screen"""
@@ -201,6 +208,23 @@ class MFPageOrganizerApp:
         ttk.Checkbutton(compress_frame, text="Compress PDF (smaller file size)", 
                        variable=self.compress_var).pack(side=tk.LEFT, padx=(10, 0))
         
+        # Output format selection
+        format_frame = ttk.Frame(right_column)
+        format_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        ttk.Label(format_frame, text="Output image format:").pack(side=tk.LEFT)
+        self.output_format_var = tk.StringVar(value="TIF")
+        format_combo = ttk.Combobox(format_frame, textvariable=self.output_format_var,
+                                    values=["TIF (300 DPI)", "JPG (300 DPI)"],
+                                    state="readonly", width=15)
+        format_combo.pack(side=tk.LEFT, padx=(10, 0))
+        format_combo.current(0)  # Default to TIF
+        
+        # PDF output checkbox
+        self.include_pdf_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(format_frame, text="Include PDF", 
+                       variable=self.include_pdf_var).pack(side=tk.LEFT, padx=(10, 0))
+        
         # Output section
         output_frame = ttk.LabelFrame(main_frame, text="💾 Save Results", padding="15")
         output_frame.pack(fill=tk.X, pady=(0, 10))
@@ -224,6 +248,11 @@ class MFPageOrganizerApp:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=(15, 0))
         
+        # Default Settings button
+        self.default_btn = ttk.Button(button_frame, text="⚙️ Use Default Settings", 
+                                     command=self.apply_default_settings)
+        self.default_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
         self.process_btn = ttk.Button(button_frame, text="🚀 Organize My Pages", 
                                      command=self.start_processing)
         self.process_btn.pack(side=tk.LEFT, padx=(0, 10))
@@ -235,6 +264,9 @@ class MFPageOrganizerApp:
         
         ttk.Button(button_frame, text="❓ Help", 
                   command=self.show_help).pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Button(button_frame, text="🎨 Theme", 
+                  command=self.toggle_theme).pack(side=tk.LEFT, padx=(0, 10))
         
         ttk.Button(button_frame, text="ℹ️ About", 
                   command=self.show_about).pack(side=tk.RIGHT)
@@ -305,6 +337,31 @@ class MFPageOrganizerApp:
                 self.input_folder.set(folder_path)
                 self.update_output_path(folder_path)
     
+    def apply_default_settings(self):
+        """Apply recommended default settings for optimal processing"""
+        # DEFAULT SETTINGS FOR PAGE AUTOMATION
+        self.enhance_var.set(False)          # Image quality: OFF (faster)
+        self.auto_rotate_var.set(True)       # Auto-rotate: ON (essential for books)
+        self.auto_crop_var.set(True)         # Auto-crop: ON (removes borders)
+        self.clean_circles_var.set(True)     # Clean circles: ON (removes scan artifacts)
+        self.fast_mode_var.set(False)        # Fast mode: OFF (better accuracy)
+        self.accuracy_var.set("Standard")    # Accuracy: Standard (balanced)
+        self.blank_page_var.set("Start & End")  # Blank pages: Remove start & end
+        self.compress_var.set(False)         # PDF compression: OFF (better quality)
+        self.output_format_var.set("TIF (300 DPI)")  # Format: TIF with 300 DPI
+        self.include_pdf_var.set(True)       # Include PDF: ON
+        
+        messagebox.showinfo("Default Settings Applied", 
+                          "✅ Default settings have been applied:\n\n"
+                          "• Auto-rotate: ON\n"
+                          "• Auto-crop: ON\n"
+                          "• Clean dark circles: ON\n"
+                          "• Remove blank pages: Start & End\n"
+                          "• Output format: TIF (300 DPI)\n"
+                          "• Include PDF: YES\n"
+                          "• Accuracy: Standard\n\n"
+                          "These settings work best for most books!")
+    
     def browse_output(self):
         """Browse for output folder"""
         folder_path = filedialog.askdirectory(title="Choose where to save organized pages")
@@ -312,10 +369,27 @@ class MFPageOrganizerApp:
             self.output_folder.set(folder_path)
     
     def update_output_path(self, input_path):
-        """Auto-suggest output path based on input"""
+        """Auto-suggest output path based on input - INSIDE the input folder"""
         if not self.output_folder.get():
-            input_dir = Path(input_path).parent
-            suggested_output = input_dir / "Organized_Pages"
+            input_path_obj = Path(input_path)
+            if input_path_obj.is_dir():
+                # For folder: create output INSIDE the folder
+                # Extract ISBN from first image file
+                image_files = list(input_path_obj.glob('*.jpg')) + list(input_path_obj.glob('*.png')) + list(input_path_obj.glob('*.tif'))
+                if image_files:
+                    first_file = image_files[0].name
+                    parts = first_file.split('_')
+                    if parts and parts[0].isdigit() and len(parts[0]) >= 10:
+                        isbn = parts[0]
+                    else:
+                        isbn = "Organized_Pages"
+                else:
+                    isbn = "Organized_Pages"
+                suggested_output = input_path_obj / isbn
+            else:
+                # For file: create output in parent directory
+                input_dir = input_path_obj.parent
+                suggested_output = input_dir / "Organized_Pages"
             self.output_folder.set(str(suggested_output))
     
     def start_processing(self):
@@ -396,6 +470,18 @@ class MFPageOrganizerApp:
             # Set PDF compression
             config.set('output.compress_pdf', self.compress_var.get())
             
+            # Set output format (TIF or JPG) - both convert to 300 DPI
+            output_format = self.output_format_var.get()
+            if "TIF" in output_format:
+                config.set('output.image_format', 'tif')
+            else:  # JPG
+                config.set('output.image_format', 'jpg')
+            # Always convert to 300 DPI (both TIF and JPG)
+            config.set('output.convert_to_300dpi', True)
+            
+            # Set PDF creation based on checkbox
+            config.set('output.create_pdf', self.include_pdf_var.get())
+            
             # Set confidence based on accuracy level
             accuracy_levels = {
                 "Fast": 70,
@@ -408,27 +494,39 @@ class MFPageOrganizerApp:
             # Get input and output paths
             input_path = self.input_folder.get()
             
-            # Set output path inside the input folder
+            # Enhanced output path logic - always create INSIDE input folder
+            input_path_obj = Path(input_path)
+            
+            # Extract ISBN/folder identifier from input folder name
+            if input_path_obj.is_dir():
+                input_folder_name = input_path_obj.name
+            else:
+                input_folder_name = input_path_obj.stem
+            
+            # Try to extract ISBN from folder name (look for 13-digit number)
+            import re
+            isbn_match = re.search(r'\d{13}', input_folder_name)
+            if isbn_match:
+                isbn_number = isbn_match.group()
+            else:
+                # If no ISBN found, use folder name or generate from first few chars
+                isbn_number = input_folder_name
+            
+            # Set output path INSIDE the input folder
             if self.output_folder.get():
                 output_path = self.output_folder.get()
             else:
-                # Create folder with same name as input folder
-                input_path_obj = Path(input_path)
+                # Create output folder INSIDE the input directory
                 if input_path_obj.is_dir():
-                    folder_name = input_path_obj.name
-                    output_path = str(input_path_obj / folder_name)
+                    # For folder input: create output inside the folder
+                    output_path = str(input_path_obj / isbn_number)
                 else:
-                    # If input is a file, create folder with file name
-                    folder_name = input_path_obj.stem
-                    output_path = str(input_path_obj.parent / folder_name)
+                    # For file input: create output inside the parent directory
+                    output_path = str(input_path_obj.parent / isbn_number)
             
-            # Get folder name for PDF naming
-            if Path(input_path).is_dir():
-                folder_name = Path(input_path).name
-            else:
-                folder_name = Path(input_path).stem
-            
-            config.set('output.pdf_name', folder_name)
+            # Set PDF naming and file naming convention
+            config.set('output.pdf_name', isbn_number)
+            config.set('output.file_prefix', isbn_number)  # New setting for file naming
             
             # Create args object for CLI
             class Args:
@@ -516,6 +614,89 @@ class MFPageOrganizerApp:
         self.status_label.config(text="🚫 Processing cancelled")
         
         messagebox.showinfo("Cancelled", "Processing was cancelled by user.")
+    
+    def detect_system_theme(self):
+        """Detect system theme (Windows 10/11)"""
+        try:
+            import winreg
+            registry = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
+            key = winreg.OpenKey(registry, r'SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize')
+            value, _ = winreg.QueryValueEx(key, 'AppsUseLightTheme')
+            self.system_is_dark = (value == 0)
+        except:
+            self.system_is_dark = False  # Default to light if can't detect
+    
+    def apply_theme(self):
+        """Apply the selected theme"""
+        if self.current_theme == "system":
+            is_dark = self.system_is_dark
+        elif self.current_theme == "dark":
+            is_dark = True
+        else:  # light
+            is_dark = False
+        
+        # Configure ttk style
+        style = ttk.Style()
+        style.theme_use('clam')  # Use clam for better customization
+        
+        if is_dark:
+            # Dark theme colors
+            bg_color = "#2b2b2b"
+            fg_color = "#ffffff"
+            entry_bg = "#3c3c3c"
+            entry_fg = "#ffffff"
+            button_bg = "#404040"
+            frame_bg = "#333333"
+            
+            # Apply dark theme to all ttk widgets
+            style.configure('TFrame', background=bg_color)
+            style.configure('TLabel', background=bg_color, foreground=fg_color)
+            style.configure('TLabelframe', background=bg_color, foreground=fg_color)
+            style.configure('TLabelframe.Label', background=bg_color, foreground=fg_color)
+            style.configure('TButton', background=button_bg, foreground=fg_color)
+            style.configure('TEntry', fieldbackground=entry_bg, foreground=entry_fg)
+            style.configure('TCombobox', fieldbackground=entry_bg, foreground=entry_fg)
+            style.configure('TCheckbutton', background=bg_color, foreground=fg_color)
+            style.configure('TProgressbar', background='#4CAF50', troughcolor=frame_bg)
+        else:
+            # Light theme colors
+            bg_color = "#f0f0f0"
+            fg_color = "#000000"
+            entry_bg = "#ffffff"
+            entry_fg = "#000000"
+            button_bg = "#e0e0e0"
+            frame_bg = "#ffffff"
+            
+            # Apply light theme to all ttk widgets
+            style.configure('TFrame', background=bg_color)
+            style.configure('TLabel', background=bg_color, foreground=fg_color)
+            style.configure('TLabelframe', background=bg_color, foreground=fg_color)
+            style.configure('TLabelframe.Label', background=bg_color, foreground=fg_color)
+            style.configure('TButton', background=button_bg, foreground=fg_color)
+            style.configure('TEntry', fieldbackground=entry_bg, foreground=entry_fg)
+            style.configure('TCombobox', fieldbackground=entry_bg, foreground=entry_fg)
+            style.configure('TCheckbutton', background=bg_color, foreground=fg_color)
+            style.configure('TProgressbar', background='#4CAF50', troughcolor=frame_bg)
+        
+        # Apply colors to root window
+        self.root.configure(bg=bg_color)
+        
+        # Apply colors to Text widget (log area) if it exists
+        if hasattr(self, 'log_text'):
+            self.log_text.configure(bg=entry_bg, fg=entry_fg, insertbackground=entry_fg)
+    
+    def toggle_theme(self):
+        """Toggle between system/light/dark themes"""
+        themes = ["system", "light", "dark"]
+        current_index = themes.index(self.current_theme)
+        self.current_theme = themes[(current_index + 1) % 3]
+        
+        self.detect_system_theme()
+        self.apply_theme()
+        
+        # Update window title to show current theme
+        theme_names = {"system": "System", "light": "Light", "dark": "Dark"}
+        self.root.title(f"MF Page Organizer - {theme_names[self.current_theme]} Mode")
     
     def show_help(self):
         """Show help dialog"""

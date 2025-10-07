@@ -33,7 +33,20 @@ class PageInfo:
 class InputHandler:
     """Handles input file processing and validation"""
     
-    SUPPORTED_IMAGE_FORMATS = {'.png', '.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.webp'}
+    # Support ALL common image formats
+    SUPPORTED_IMAGE_FORMATS = {
+        '.png', '.jpg', '.jpeg', '.jpe', '.jfif',  # JPEG variants
+        '.tiff', '.tif',  # TIFF
+        '.bmp', '.dib',  # Bitmap
+        '.webp',  # WebP
+        '.gif',  # GIF
+        '.ico',  # Icon
+        '.ppm', '.pgm', '.pbm', '.pnm',  # Netpbm
+        '.pcx',  # PCX
+        '.tga', '.icb', '.vda', '.vst',  # Targa
+        '.jp2', '.j2k', '.jpf', '.jpx', '.jpm',  # JPEG 2000
+        '.heic', '.heif'  # HEIF/HEIC (if supported by PIL)
+    }
     SUPPORTED_DOCUMENT_FORMATS = {'.pdf'}
     
     def __init__(self, logger):

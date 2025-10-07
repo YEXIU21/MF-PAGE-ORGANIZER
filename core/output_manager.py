@@ -147,13 +147,25 @@ class OutputManager:
     
     def _create_images_output(self, sorted_decisions: List[OrderingDecision], 
                              output_path: Path) -> bool:
-        """Create individual image files in correct order"""
+        """Create individual image files in correct order with ISBN naming convention"""
         try:
             # Save images directly in output folder (not subfolder)
             images_dir = output_path
             images_dir.mkdir(exist_ok=True)
             
             self.logger.step(f"Creating ordered images: {images_dir}")
+            
+            # Extract ISBN from first page filename (e.g., "9780632046584_Page_001.jpg" -> "9780632046584")
+            if sorted_decisions and sorted_decisions[0].page_info:
+                first_filename = sorted_decisions[0].page_info.original_name
+                # Try to extract ISBN (numbers before first underscore)
+                parts = first_filename.split('_')
+                if parts and parts[0].isdigit():
+                    file_prefix = parts[0]  # Use ISBN as prefix
+                else:
+                    file_prefix = self.config.get('output.file_prefix', 'page')
+            else:
+                file_prefix = self.config.get('output.file_prefix', 'page')
             
             for i, decision in enumerate(sorted_decisions):
                 self.logger.progress("Saving ordered images", i + 1, len(sorted_decisions))
@@ -162,24 +174,43 @@ class OutputManager:
                 if not page_info.image:
                     continue
                 
-                # Create filename with ordering position
-                original_name = Path(page_info.original_name).stem
-                extension = Path(page_info.original_name).suffix or '.png'
-                ordered_filename = f"{decision.assigned_position:03d}_{original_name}{extension}"
+                # Get output format from config (TIF or JPG)
+                output_format = self.config.get('output.image_format', 'tif')
+                convert_to_300dpi = self.config.get('output.convert_to_300dpi', True)
+                
+                extension = f'.{output_format}'
+                # Use 5-digit padding for page numbers (00001, 00002, etc.)
+                ordered_filename = f"{file_prefix}_{decision.assigned_position:05d}{extension}"
                 
                 # Save image
                 image_path = images_dir / ordered_filename
                 
-                # Preserve original quality if requested
-                if self.config.get('output.preserve_original_quality', True):
-                    # Save with high quality
-                    if extension.lower() in ['.jpg', '.jpeg']:
+                # STAGE: Process based on format selection
+                if convert_to_300dpi:
+                    # Convert to 300 DPI (both TIF and JPG)
+                    self.logger.debug(f"Converting {page_info.original_name} to 300 DPI {output_format.upper()}...")
+                    image_300dpi = self._convert_to_300dpi(page_info.image)
+                    
+                    if output_format == 'tif':
+                        # TIF format with lossless compression
+                        image_300dpi.save(image_path, 
+                                         format='TIFF',
+                                         compression='tiff_lzw',
+                                         dpi=(300, 300))
+                    else:
+                        # JPG format with 300 DPI
+                        image_300dpi.save(image_path, 
+                                         format='JPEG',
+                                         quality=95,
+                                         optimize=True,
+                                         dpi=(300, 300))
+                else:
+                    # Save with original DPI (fallback)
+                    self.logger.debug(f"Saving {page_info.original_name} as {output_format.upper()} (original DPI)...")
+                    if output_format == 'jpg':
                         page_info.image.save(image_path, quality=95, optimize=True)
                     else:
                         page_info.image.save(image_path)
-                else:
-                    # Standard quality
-                    page_info.image.save(image_path)
             
             self.logger.success(f"Ordered images saved to: {images_dir}")
             return True
@@ -532,3 +563,40 @@ class OutputManager:
         except Exception as e:
             self.logger.warning(f"PDF compression failed: {e}")
             return None
+    
+    def _convert_to_300dpi(self, image: Image.Image) -> Image.Image:
+        """Convert image to 300 DPI regardless of original DPI"""
+        try:
+            # Get current DPI (default to 72 if not set)
+            current_dpi = image.info.get('dpi', (72, 72))
+            if isinstance(current_dpi, (int, float)):
+                current_dpi = (current_dpi, current_dpi)
+            
+            current_dpi_x, current_dpi_y = current_dpi
+            
+            # If already 300 DPI, return as is
+            if current_dpi_x == 300 and current_dpi_y == 300:
+                return image
+            
+            # Calculate scaling factor to achieve 300 DPI
+            scale_x = 300 / current_dpi_x
+            scale_y = 300 / current_dpi_y
+            
+            # Get current size
+            width, height = image.size
+            
+            # Calculate new size for 300 DPI
+            new_width = int(width * scale_x)
+            new_height = int(height * scale_y)
+            
+            # Resize image using high-quality resampling
+            resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            self.logger.debug(f"Converted from {current_dpi_x}x{current_dpi_y} DPI to 300x300 DPI "
+                            f"(size: {width}x{height} → {new_width}x{new_height})")
+            
+            return resized_image
+            
+        except Exception as e:
+            self.logger.warning(f"DPI conversion failed, using original: {e}")
+            return image

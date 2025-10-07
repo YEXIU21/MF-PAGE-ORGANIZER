@@ -125,12 +125,13 @@ class EmbeddedOCR:
         
         if matches:
             # Use the last number found (usually the page number)
+            # LOW CONFIDENCE: Filename should be FALLBACK only, not primary source
             last_number = matches[-1]
             numbers.append({
                 'text': last_number,
                 'value': int(last_number),
                 'type': 'filename',
-                'confidence': 0.9
+                'confidence': 0.3  # Lowered from 0.9 to prioritize OCR-detected numbers
             })
         
         return numbers

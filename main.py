@@ -51,17 +51,19 @@ class PageReorderCLI:
         log_file = f"logs/page_reorder_{Path(args.input).stem}.log" if args.log else None
         self.logger = create_logger(log_file=log_file, verbose=args.verbose)
         
-        # Initialize components
+        # Initialize AI learning system FIRST (for adaptive behavior)
+        self.ai_learning = AILearningSystem(self.logger)
+        
+        # Initialize components with AI learning integration
         self.input_handler = InputHandler(self.logger)
         self.preprocessor = Preprocessor(self.logger)
-        self.ocr_engine = OCREngine(self.logger)
+        self.ocr_engine = OCREngine(self.logger, self.ai_learning)  # ADAPTIVE: Pass AI learning
         self.numbering_system = NumberingSystem(self.logger)
         self.content_analyzer = ContentAnalyzer(self.logger)
         self.confidence_system = ConfidenceSystem(self.logger)
         self.output_manager = OutputManager(self.logger)
         self.blank_page_detector = BlankPageDetector(self.logger)
         self.performance_optimizer = PerformanceOptimizer(self.logger)
-        self.ai_learning = AILearningSystem(self.logger)
         self.cancel_processing = False
     
     def process_pages(self, input_path: str, output_path: str) -> bool:
@@ -74,97 +76,157 @@ class PageReorderCLI:
             else:
                 folder_name = input_path_obj.stem
             
+            import time
+            start_time = time.time()
+            
             with ProcessLogger(self.logger, "Page Reordering Process"):
                 
-                # Step 1: Load input files
-                self.logger.step("Loading input files")
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 1: LOAD INPUT FILES
+                # ═══════════════════════════════════════════════════════════
+                self.logger.step("STAGE 1: Loading input files")
                 pages = self.input_handler.load_files(input_path)
                 if not pages:
                     self.logger.failure("No valid pages found in input")
                     return False
                 
-                self.logger.info(f"Loaded {len(pages)} pages")
+                self.logger.info(f"✅ Stage 1 Complete: Loaded {len(pages)} pages")
                 
-                # Get optimal performance settings based on system resources
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 2: AI OPTIMIZATION
+                # ═══════════════════════════════════════════════════════════
+                self.logger.step("STAGE 2: AI Optimization")
+                import psutil
+                available_ram_gb = psutil.virtual_memory().available / (1024**3)
+                
+                # Get AI recommendations based on document size and system resources
+                ai_recommendations = self.ai_learning.get_recommended_settings(
+                    len(pages), available_ram_gb)
+                
+                # Apply AI recommendations to config
+                self.logger.info("🤖 Applying AI-optimized settings...")
+                for setting, value in ai_recommendations.items():
+                    if setting != 'reasoning':
+                        if setting == 'preprocessing':
+                            config.set('default_settings.enable_preprocessing', value)
+                        elif setting == 'auto_rotate':
+                            config.set('preprocessing.auto_rotate', value)
+                        elif setting == 'auto_crop':
+                            config.set('preprocessing.auto_crop', value)
+                        elif setting == 'clean_circles':
+                            config.set('preprocessing.clean_dark_circles', value)
+                        elif setting == 'blank_removal':
+                            config.set('processing.blank_page_mode', value)
+                        elif setting == 'advanced_analysis':
+                            config.set('ocr.use_advanced_analysis', value)
+                
+                # Show AI reasoning
+                for reason in ai_recommendations.get('reasoning', []):
+                    self.logger.info(f"   • {reason}")
+                
+                # Get optimization suggestions
+                suggestions = self.ai_learning.suggest_optimization(len(pages), available_ram_gb)
+                for suggestion in suggestions:
+                    self.logger.info(suggestion)
+                
+                # Get optimal performance settings based on AI + system resources
                 perf_settings = self.performance_optimizer.get_optimal_settings()
                 
-                # Estimate processing time
+                # Estimate processing time with AI predictions
                 features_enabled = {
                     'preprocessing': config.get('default_settings.enable_preprocessing', False),
                     'auto_crop': config.get('preprocessing.auto_crop', False),
                     'clean_circles': config.get('preprocessing.clean_dark_circles', False)
                 }
-                estimated_time = self.performance_optimizer.get_estimated_time(
-                    len(pages), perf_settings['workers'], features_enabled
-                )
-                self.logger.info(f"⏱️ Estimated processing time: {estimated_time:.1f} minutes")
+                estimated_time = self.ai_learning.predict_processing_time(len(pages), features_enabled)
+                self.logger.info(f"⏱️ AI estimated processing time: {estimated_time:.1f} minutes")
+                self.logger.info(f"✅ Stage 2 Complete: AI optimization applied")
                 
-                # Step 2: Remove blank pages (if enabled)
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 3: BLANK PAGE REMOVAL
+                # ═══════════════════════════════════════════════════════════
                 blank_mode = config.get('processing.blank_page_mode', 'start_end')
                 if blank_mode != 'none':
-                    self.logger.step(f"Removing blank pages (mode: {blank_mode})")
+                    self.logger.step(f"STAGE 3: Removing blank pages (mode: {blank_mode})")
                     pages, num_removed = self.blank_page_detector.remove_blank_pages(pages, blank_mode)
                     if num_removed > 0:
                         self.logger.info(f"Removed {num_removed} blank pages")
                         self.logger.info(f"Remaining pages: {len(pages)}")
+                self.logger.info(f"✅ Stage 3 Complete: Blank page removal done")
                 
-                # Step 3: Preprocessing (optional)
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 4: PREPROCESSING
+                # ═══════════════════════════════════════════════════════════
                 if config.get('default_settings.enable_preprocessing', True):
                     # Check for cancellation
                     if self.cancel_processing:
                         self.logger.info("Processing cancelled by user")
                         return False
                         
-                    self.logger.step("Preprocessing images")
+                    self.logger.step("STAGE 4: Preprocessing images")
                     pages = self.preprocessor.process_batch(pages)
+                self.logger.info(f"✅ Stage 4 Complete: Preprocessing done")
                 
-                # Step 4: OCR and number extraction
-                # Check for cancellation
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 5: OCR & PAGE DETECTION
+                # ═══════════════════════════════════════════════════════════
                 if self.cancel_processing:
                     self.logger.info("Processing cancelled by user")
                     return False
                     
-                self.logger.step("Extracting text and numbers via OCR")
+                self.logger.step("STAGE 5: Extracting text and numbers via OCR")
                 ocr_results = self.ocr_engine.process_batch(pages)
+                self.logger.info(f"✅ Stage 5 Complete: OCR processing done")
                 
-                # Step 5: Detect numbering system
-                # Check for cancellation
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 6: NUMBERING ANALYSIS
+                # ═══════════════════════════════════════════════════════════
                 if self.cancel_processing:
                     self.logger.info("Processing cancelled by user")
                     return False
                     
-                self.logger.step("Analyzing numbering systems")
+                self.logger.step("STAGE 6: Analyzing numbering systems")
                 numbering_info = self.numbering_system.analyze_numbering(ocr_results)
+                self.logger.info(f"✅ Stage 6 Complete: Numbering analysis done")
                 
-                # Step 6: Initial ordering based on detected numbers
-                # Check for cancellation
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 7: PAGE ORDERING
+                # ═══════════════════════════════════════════════════════════
                 if self.cancel_processing:
                     self.logger.info("Processing cancelled by user")
                     return False
                     
-                self.logger.step("Ordering pages by detected numbers")
+                self.logger.step("STAGE 7: Ordering pages by detected numbers")
                 ordered_pages = self.numbering_system.order_by_numbers(pages, ocr_results, numbering_info)
+                self.logger.info(f"✅ Stage 7 Complete: Page ordering done")
                 
-                # Step 7: Content-based ordering for ambiguous cases
-                # Check for cancellation
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 8: CONTENT ANALYSIS
+                # ═══════════════════════════════════════════════════════════
                 if self.cancel_processing:
                     self.logger.info("Processing cancelled by user")
                     return False
                     
-                self.logger.step("Analyzing content relationships")
+                self.logger.step("STAGE 8: Analyzing content relationships")
                 final_order = self.content_analyzer.refine_ordering(ordered_pages, ocr_results)
+                self.logger.info(f"✅ Stage 8 Complete: Content analysis done")
                 
-                # Step 7: Confidence assessment
-                self.logger.step("Assessing ordering confidence")
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 9: CONFIDENCE ASSESSMENT
+                # ═══════════════════════════════════════════════════════════
+                self.logger.step("STAGE 9: Assessing ordering confidence")
                 confidence_report = self.confidence_system.evaluate_ordering(final_order, ocr_results)
+                self.logger.info(f"✅ Stage 9 Complete: Confidence assessment done")
                 
-                # Step 8: Handle low-confidence cases
+                # Handle low-confidence cases
                 if config.get('content_analysis.min_confidence_for_auto_order', 90) > confidence_report['overall_confidence']:
                     self.logger.warning(f"Low confidence ordering ({confidence_report['overall_confidence']:.1f}%)")
                     self.logger.info("Consider using GUI mode for manual review")
                 
-                # Step 9: Generate output
-                self.logger.step("Generating output files")
+                # ═══════════════════════════════════════════════════════════
+                # STAGE 10 & 11: OUTPUT GENERATION (DPI + Format)
+                # ═══════════════════════════════════════════════════════════
+                self.logger.step("STAGE 10-11: Generating output files (DPI conversion + Format)")
                 success = self.output_manager.create_output(
                     final_order, 
                     output_path, 
@@ -174,8 +236,35 @@ class PageReorderCLI:
                 )
                 
                 if success:
+                    self.logger.info(f"✅ Stage 10-11 Complete: Output generation done")
                     self.logger.success(f"Successfully processed {len(final_order)} pages")
                     self.logger.info(f"Output saved to: {output_path}")
+                    
+                    # Show AI Learning Statistics (SPEED IMPROVEMENTS!)
+                    if hasattr(self.ocr_engine, 'advanced_detector'):
+                        self.logger.info("")
+                        self.ocr_engine.advanced_detector.log_learning_stats()
+                    
+                    # Record processing session for AI learning
+                    import time
+                    processing_time = time.time() - start_time if 'start_time' in locals() else 0
+                    
+                    document_info = {
+                        'page_count': len(pages),
+                        'file_type': 'images',
+                        'size_mb': sum(p.file_path.stat().st_size for p in pages if p.file_path.exists()) / (1024*1024)
+                    }
+                    
+                    result_info = {
+                        'success': True,
+                        'processing_time': processing_time,
+                        'pages_processed': len(final_order),
+                        'confidence': confidence_report.get('overall_confidence', 0)
+                    }
+                    
+                    # Learn from this processing session
+                    self.ai_learning.record_processing(document_info, features_enabled, result_info)
+                    
                     return True  # Return success
                 else:
                     self.logger.failure("Failed to generate output")
@@ -187,33 +276,6 @@ class PageReorderCLI:
             self.logger.error(traceback.format_exc())
             return False
     
-    def _optimize_settings_for_document_size(self, page_count: int):
-        """Optimize processing settings based on document size for better performance"""
-        import psutil
-        
-        # Get available memory
-        available_memory_gb = psutil.virtual_memory().available / (1024**3)
-        
-        if page_count > 400:  # Very large document
-            self.logger.info(f"Large document detected ({page_count} pages), optimizing for performance...")
-            
-            # Conservative settings for large documents
-            if available_memory_gb < 4:
-                self.logger.warning("Low memory detected, using conservative settings")
-                # Disable memory-intensive features if low memory
-                if config.get('default_settings.enable_preprocessing', False):
-                    self.logger.info("Disabling preprocessing due to memory constraints")
-                    config.set('default_settings.enable_preprocessing', False)
-            
-        elif page_count > 200:  # Medium document
-            self.logger.info(f"Medium document detected ({page_count} pages), using balanced settings")
-            
-        else:  # Small document
-            self.logger.info(f"Small document detected ({page_count} pages), using full quality settings")
-        
-        # Log memory status
-        memory_percent = psutil.virtual_memory().percent
-        self.logger.info(f"Memory usage: {memory_percent:.1f}% ({available_memory_gb:.1f}GB available)")
     
     def run(self, args):
         """Run the page reordering process with given arguments"""
@@ -228,8 +290,32 @@ class PageReorderCLI:
                 return False
             
             # Setup output path
-            output_path = Path(args.output) if args.output else input_path.parent / "reordered"
-            output_path.mkdir(parents=True, exist_ok=True)
+            if args.output:
+                output_path = Path(args.output)
+                output_path.mkdir(parents=True, exist_ok=True)
+            else:
+                # Create output folder INSIDE input folder
+                if input_path.is_dir():
+                    # Extract ISBN from first image file in folder
+                    image_files = list(input_path.glob('*.jpg')) + list(input_path.glob('*.png')) + list(input_path.glob('*.tif')) + list(input_path.glob('*.tiff'))
+                    if image_files:
+                        first_file = image_files[0].name
+                        # Extract ISBN (numbers before first underscore)
+                        parts = first_file.split('_')
+                        if parts and parts[0].isdigit() and len(parts[0]) >= 10:
+                            isbn = parts[0]  # Use ISBN as folder name
+                        else:
+                            isbn = "Organized_Pages"  # Default name
+                    else:
+                        isbn = "Organized_Pages"
+                    
+                    # Create output INSIDE the input folder
+                    output_path = input_path / isbn
+                    output_path.mkdir(parents=True, exist_ok=True)
+                else:
+                    # For single file, use parent folder
+                    output_path = input_path.parent / "reordered"
+                    output_path.mkdir(parents=True, exist_ok=True)
             
             self.logger.info("🚀 AI Page Reordering Automation System")
             self.logger.info(f"Input: {input_path}")

@@ -378,6 +378,7 @@ class NumberingSystem:
         
         if not detected_numbers or not primary_scheme:
             # No numbers detected - keep original position
+            self.logger.warning(f"⚠️ {page.original_name}: No page numbers detected - using original position {original_index + 1}")
             return OrderingDecision(
                 page_info=page,
                 assigned_position=original_index + 1,
@@ -396,12 +397,14 @@ class NumberingSystem:
             position = best_number.numeric_value
             confidence = min(0.95, best_number.confidence / 100.0)
             reasoning = f"Page number {best_number.text} detected ({best_number.number_type})"
+            self.logger.info(f"✅ {page.original_name}: Detected '{best_number.text}' → Position {position}")
         else:
             # Use highest confidence number from any type
             best_number = max(detected_numbers, key=lambda x: x.confidence)
             position = best_number.numeric_value
             confidence = min(0.7, best_number.confidence / 100.0)
             reasoning = f"Using {best_number.text} from {best_number.number_type} numbering"
+            self.logger.info(f"✅ {page.original_name}: Using '{best_number.text}' → Position {position}")
         
         # Generate alternative positions
         alternatives = [num.numeric_value for num in detected_numbers 

@@ -10,13 +10,19 @@
         "denoise": true,
         "deskew": true,
         "contrast_enhance": false,
-        "watermark_reduction": false
+        "watermark_reduction": false,
+        "auto_rotate": true,
+        "auto_crop": true,
+        "clean_dark_circles": true,
+        "image_optimization": true
     },
     "ocr": {
-        "language": "eng",
-        "engine_mode": 3,
-        "page_segmentation": 6,
-        "enable_handwriting": false
+        "use_advanced_analysis": true,
+        "careful_analysis": true,
+        "orientation_detection": true,
+        "comprehensive_positioning": true,
+        "side_center_detection": true,
+        "careful_analysis_mode": true
     },
     "numbering": {
         "detect_arabic": true,
@@ -31,11 +37,21 @@
         "reference_weight": 0.3,
         "min_confidence_for_auto_order": 90
     },
+    "processing": {
+        "blank_page_mode": "start_end",
+        "fast_mode": false
+    },
     "output": {
         "create_pdf": true,
-        "create_images": false,
+        "create_images": true,
         "create_metadata_log": true,
-        "preserve_original_quality": true
+        "preserve_original_quality": true,
+        "compress_pdf": false,
+        "pdf_name": "document",
+        "file_prefix": "page",
+        "add_page_numbers": false,
+        "image_format": "tif",
+        "convert_to_300dpi": true
     },
     "paths": {
         "temp_dir": "data/temp",

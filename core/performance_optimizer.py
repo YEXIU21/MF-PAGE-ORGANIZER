@@ -81,13 +81,32 @@ class PerformanceOptimizer:
         # Very High RAM (16-32GB available)
         elif available_ram_gb < 32:
             workers = min(8, cpu_cores)
-            return workers, 200, f"Very High Performance ({workers} workers)"
-        
         # Extreme RAM (32GB+ available)
         else:
             workers = min(12, cpu_cores)
             return workers, 300, f"Maximum Performance ({workers} workers)"
     
+    def _calculate_memory_workers(self) -> int:
+        """Calculate workers based on available RAM"""
+        # EasyOCR uses ~1-2GB per worker
+        # Conservative estimate: 2.5GB per worker
+        if self.available_memory_gb < 4:
+            return 1  # Low RAM
+        elif self.available_memory_gb < 8:
+            return 2  # 4-8GB RAM
+        elif self.available_memory_gb < 12:
+            return 3  # 8-12GB RAM
+        elif self.available_memory_gb < 16:
+            return 4  # 12-16GB RAM
+        elif self.available_memory_gb < 32:
+            return 8  # 16-32GB RAM
+        elif self.available_memory_gb < 64:
+            return 16  # 32-64GB RAM
+        elif self.available_memory_gb < 128:
+            return 32  # 64-128GB RAM
+        else:
+            # For extreme RAM (128GB+), calculate based on 2.5GB per worker
+            return min(64, int(self.available_memory_gb / 2.5))
     def _get_memory_check_interval(self, available_ram_gb: float) -> int:
         """Get how often to check memory based on available RAM"""
         if available_ram_gb < 2:
@@ -103,7 +122,6 @@ class PerformanceOptimizer:
         """Determine if a feature should be enabled based on available resources"""
         if available_ram_gb is None:
             available_ram_gb = psutil.virtual_memory().available / (1024**3)
-        
         # Feature memory requirements
         feature_requirements = {
             'preprocessing': 4.0,  # Needs 4GB+
