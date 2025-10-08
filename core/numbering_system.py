@@ -504,10 +504,25 @@ class NumberingSystem:
         detected_numbers = ocr_result.detected_numbers
         
         if not detected_numbers or detected_numbers[0].confidence < 50.0:
-            # No reliable number detected - will be placed sequentially
-            position = original_index + 1  # Temporary, will be reassigned
-            confidence = 0.4
-            reasoning = "No reliable page number detected - sequential placement"
+            # No reliable number detected
+            position = original_index + 1
+            
+            # SMART: Blank pages and middle pages should stay in filename positions
+            # Pages 1-5: Front matter (title, blank, copyright, contents) - HIGH confidence
+            # Pages 6+: If no number detected, likely blank page - KEEP in original position
+            if position <= 5:
+                confidence = 0.9
+                reasoning = "No page number expected (title/front matter) - correct behavior"
+                self.logger.info(f"✅ {page.original_name}: Front matter at position {position}")
+            elif position > 15:
+                # Middle/end pages without numbers are likely blank - MUST keep in place!
+                # Blank pages are intentional placeholders, give them HIGHEST confidence
+                confidence = 0.95  # Match numbered pages to prevent displacement
+                reasoning = "Blank page detected - preserving filename position (intentional placeholder)"
+                self.logger.info(f"📄 {page.original_name}: Blank page at position {position} (HIGH confidence)")
+            else:
+                confidence = 0.4
+                reasoning = "No reliable page number detected - sequential placement"
             
             return OrderingDecision(
                 page_info=page,
@@ -587,8 +602,10 @@ class NumberingSystem:
                                                 global_context: Dict[str, Any]) -> List[OrderingDecision]:
         """Resolve conflicts using global context"""
         # Separate numbered from unnumbered
-        numbered = [d for d in decisions if d.detected_numbers and d.confidence >= 0.6]
-        unnumbered = [d for d in decisions if not d.detected_numbers or d.confidence < 0.6]
+        # CRITICAL: High-confidence pages (even without detected numbers) should participate in conflict resolution
+        # This includes blank pages that must stay in their filename positions
+        numbered = [d for d in decisions if (d.detected_numbers and d.confidence >= 0.6) or d.confidence >= 0.9]
+        unnumbered = [d for d in decisions if not ((d.detected_numbers and d.confidence >= 0.6) or d.confidence >= 0.9)]
         
         self.logger.info(f"🔧 Resolving conflicts: {len(numbered)} numbered, {len(unnumbered)} unnumbered")
         
@@ -793,8 +810,27 @@ class NumberingSystem:
                 # CONFLICT: Multiple pages want this position
                 self.logger.warning(f"⚠️ Position {position} conflict: {len(group)} pages")
                 
-                # Sort by confidence (highest first)
-                group.sort(key=lambda x: x.confidence, reverse=True)
+                # Sort by confidence (highest first), then by filename match
+                # If equal confidence, prefer page whose filename position matches
+                def sort_key(decision):
+                    # Extract original index from filename
+                    try:
+                        # Get the page number from filename (e.g., Page_018 → 18)
+                        filename = decision.page_info.original_name
+                        if '_' in filename:
+                            parts = filename.split('_')
+                            for part in parts:
+                                if part.isdigit() or (part[:-4].isdigit() if len(part) > 4 else False):
+                                    original_pos = int(part.replace('.jpg', '').replace('.tif', '').replace('.png', ''))
+                                    filename_matches = (original_pos == position)
+                                    # Return tuple: (confidence, filename_match_bonus)
+                                    # Higher confidence wins, then filename match wins
+                                    return (-decision.confidence, not filename_matches)
+                    except:
+                        pass
+                    return (-decision.confidence, True)  # Default: just use confidence
+                
+                group.sort(key=sort_key)
                 
                 # Winner gets the original position
                 winner = group[0]
