@@ -22,9 +22,17 @@ try:
     from main import PageReorderCLI
     from utils.config import config
     from utils.logger import create_logger
+    from splash_screen import show_splash_with_loading
 except ImportError as e:
-    messagebox.showerror("Error", f"System components not found: {e}")
-    sys.exit(1)
+    # If splash_screen not available, continue without it
+    show_splash_with_loading = None
+    try:
+        from main import PageReorderCLI
+        from utils.config import config
+        from utils.logger import create_logger
+    except ImportError as e:
+        messagebox.showerror("Error", f"System components not found: {e}")
+        sys.exit(1)
 
 class MFPageOrganizerApp:
     def __init__(self, root):
@@ -829,4 +837,8 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
-    main()
+    # Show splash screen if available
+    if show_splash_with_loading:
+        show_splash_with_loading(main)
+    else:
+        main()

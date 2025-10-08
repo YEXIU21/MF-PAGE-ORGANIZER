@@ -150,6 +150,7 @@ a = Analysis(
     datas=[
         (os.path.join(root_dir, 'core'), 'core'),
         (os.path.join(root_dir, 'utils'), 'utils'),
+        (os.path.join(root_dir, 'splash_screen.py'), '.'),
     ],
     hiddenimports=[
         # GUI
