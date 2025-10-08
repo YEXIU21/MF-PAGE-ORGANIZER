@@ -1,0 +1,16 @@
+# MF Page Organizer - Build Instructions
+
+See docs/BUILD_GUIDE.md for complete build documentation.
+
+Quick Start:
+
+1. Fast Startup Build:
+   python build_exe.py
+
+2. Enhanced Build with Splash Screen:
+   python build_exe_with_splash.py
+
+3. Output will be in dist/ folder
+
+For detailed instructions, troubleshooting, and features comparison:
+See: docs/BUILD_GUIDE.md

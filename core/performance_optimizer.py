@@ -81,6 +81,8 @@ class PerformanceOptimizer:
         # Very High RAM (16-32GB available)
         elif available_ram_gb < 32:
             workers = min(8, cpu_cores)
+            return workers, 200, f"Very High Performance ({workers} workers)"
+        
         # Extreme RAM (32GB+ available)
         else:
             workers = min(12, cpu_cores)

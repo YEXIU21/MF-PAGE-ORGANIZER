@@ -60,7 +60,7 @@ class MFPageOrganizerApp:
         try:
             if getattr(sys, 'frozen', False):
                 # Running as EXE
-                icon_path = os.path.join(sys._MEIPASS, 'PageAutomation.ico')
+                icon_path = os.path.join(sys._MEIPASS, 'icon.ico')
                 if os.path.exists(icon_path):
                     self.root.iconbitmap(icon_path)
             else:

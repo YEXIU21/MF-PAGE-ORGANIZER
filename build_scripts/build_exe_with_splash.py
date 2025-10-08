@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple and Reliable EXE Builder for MF Page Organizer (Fast Startup)
-Builds a working standalone executable without splash screen for faster startup
+Enhanced EXE Builder for MF Page Organizer with Splash Screen
+Builds a working standalone executable with splash screen support
 """
 
 import os
@@ -11,7 +11,7 @@ from pathlib import Path
 
 def main():
     print("=" * 70)
-    print("MF PAGE ORGANIZER - Fast Startup EXE Builder")
+    print("MF PAGE ORGANIZER - Enhanced EXE Builder (With Splash Screen)")
     print("=" * 70)
     print()
     
@@ -37,30 +37,43 @@ def main():
     subprocess.run([sys.executable, '-m', 'pip', 'install', 'pyinstaller', '--quiet'])
     print("✓ PyInstaller ready")
     
-    # Step 3: Build
-    print("\n[3/3] Building EXE (5-10 minutes)...")
+    # Step 3: Build with splash screen support
+    print("\n[3/3] Building Enhanced EXE with Splash Screen (5-10 minutes)...")
     print("Please wait...")
     
     cmd = [
         sys.executable, '-m', 'PyInstaller',
-        '--name=PageAutomation',
+        '--name=PageAutomationEnhanced',
         '--onedir',  # Create folder with EXE
         '--windowed',  # No console
         f'--icon={icon_dst}',
         '--clean',
         '--noconfirm',
+        # Core modules
         f'--add-data={root_dir / "core"}{os.pathsep}core',
         f'--add-data={root_dir / "utils"}{os.pathsep}utils',
+        # Splash screen support
         f'--add-data={root_dir / "splash_screen.py"}{os.pathsep}.',
+        # Icon files for GUI
         f'--add-data={icon_dst}{os.pathsep}.',  # Add icon to bundle
         f'--add-data={root_dir / "PageAutomationic.png"}{os.pathsep}.',  # Add PNG for fallback
-        f'--add-data={root_dir / "config.json"}{os.pathsep}.',  # Add config file
+        # Configuration
+        f'--add-data={root_dir / "config.json"}{os.pathsep}.',
+        # Hidden imports for all required modules
         '--hidden-import=tkinter',
         '--hidden-import=PIL',
+        '--hidden-import=PIL.Image',
+        '--hidden-import=PIL.ImageTk',
         '--hidden-import=cv2',
         '--hidden-import=paddleocr',
         '--hidden-import=paddle',
         '--hidden-import=numpy',
+        '--hidden-import=threading',
+        '--hidden-import=time',
+        '--hidden-import=sys',
+        '--hidden-import=os',
+        '--hidden-import=pathlib',
+        # Main GUI entry point
         str(root_dir / 'gui_mf.py')
     ]
     
@@ -68,18 +81,18 @@ def main():
     
     if result.returncode == 0:
         print("\n" + "=" * 70)
-        print("✅ FAST STARTUP BUILD COMPLETE!")
+        print("✅ ENHANCED BUILD COMPLETE!")
         print("=" * 70)
-        print(f"\nEXE Location: {build_dir / 'dist' / 'PageAutomation' / 'PageAutomation.exe'}")
+        print(f"\nEXE Location: {build_dir / 'dist' / 'PageAutomationEnhanced' / 'PageAutomationEnhanced.exe'}")
         print("\nFeatures included:")
-        print("• ✅ Fast startup (no splash screen)")
+        print("• ✅ Beautiful splash screen with loading animation")
         print("• ✅ Professional window icon")
         print("• ✅ All core functionality")
         print("• ✅ Configuration file included")
         print("• ✅ No console window")
         print("\nTest it by double-clicking the EXE!")
     else:
-        print("\n❌ Fast startup build failed!")
+        print("\n❌ Enhanced build failed!")
 
 if __name__ == '__main__':
     main()
