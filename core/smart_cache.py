@@ -14,9 +14,18 @@ import os
 class SmartCache:
     """Intelligent caching system that remembers processed images"""
     
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, output_dir=None):
         self.logger = logger
-        self.cache_dir = Path("cache")
+        
+        # IMPROVED: Store cache in output directory for easy access/deletion
+        if output_dir:
+            self.cache_dir = Path(output_dir) / "_cache"
+            if self.logger:
+                self.logger.info(f"Cache stored in output folder: {self.cache_dir}")
+        else:
+            # Fallback to old behavior if no output dir provided
+            self.cache_dir = Path("cache")
+            
         self.cache_dir.mkdir(exist_ok=True)
         
         # Cache index for fast lookups

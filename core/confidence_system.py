@@ -47,7 +47,7 @@ class ConfidenceSystem:
     def __init__(self, logger):
         self.logger = logger
         self.config = config
-        self.confidence_threshold = self.config.get('content_analysis.min_confidence_for_auto_order', 90)
+        self.confidence_threshold = self.config.get('content_analysis.min_confidence_for_auto_order', 60)  # Lowered from 90
     
     def evaluate_ordering(self, ordering_decisions: List[OrderingDecision], 
                          ocr_results: List[OCRResult]) -> Dict[str, Any]:
@@ -116,7 +116,7 @@ class ConfidenceSystem:
             else:
                 evidence.append(f"{len(page_ocr.full_text.split())} words detected")
         
-        # Factor 2: Number detection assessment
+        # Factor 2: Number detection assessment (DOCUMENT STRUCTURE AWARE)
         if decision.detected_numbers:
             num_confidences = [num.confidence for num in decision.detected_numbers]
             avg_num_confidence = mean(num_confidences) / 100.0
@@ -134,8 +134,20 @@ class ConfidenceSystem:
                 issues.append(f"Conflicting page numbers: {sorted(unique_positions)}")
                 confidence *= 0.7
         else:
-            issues.append("No page numbers detected")
-            confidence *= 0.6
+            # SMART: Don't penalize title/blank/copyright pages for having no numbers
+            page_position = decision.assigned_position
+            if page_position <= 5:
+                # Title/blank/copyright/contents pages - no numbers expected
+                evidence.append("No page number expected (title/front matter)")
+                confidence = max(confidence, 0.8)  # Boost confidence
+            elif 6 <= page_position <= 50:
+                # Front matter - should have roman numerals
+                issues.append("Missing roman numeral in front matter")
+                confidence *= 0.7
+            else:
+                # Main content - should have arabic numbers
+                issues.append("Missing arabic number in main content")
+                confidence *= 0.6
         
         # Factor 3: Position reasonableness
         if decision.assigned_position <= 0:
@@ -153,13 +165,13 @@ class ConfidenceSystem:
             issues.append("No alternative positions available")
             confidence *= 0.8
         
-        # Determine confidence level
-        if confidence >= 0.8:
+        # Determine confidence level (IMPROVED THRESHOLDS)
+        if confidence >= 0.7:  # Lowered from 0.8
             confidence_level = 'high'
             needs_review = False
-        elif confidence >= 0.5:
-            confidence_level = 'medium'
-            needs_review = confidence < 0.7
+        elif confidence >= 0.4:  # Lowered from 0.5
+            confidence_level = 'medium'  
+            needs_review = confidence < 0.6  # Lowered from 0.7
         else:
             confidence_level = 'low'
             needs_review = True

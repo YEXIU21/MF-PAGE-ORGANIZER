@@ -44,12 +44,14 @@ class AIPatternLearning:
     def __init__(self, logger=None):
         self.logger = logger
         
-        # Location learning
+        # Location learning - ENHANCED with center positions
         self.location_patterns: Dict[str, LocationPattern] = {
             'top_left': LocationPattern('top_left'),
             'top_right': LocationPattern('top_right'),
             'bottom_left': LocationPattern('bottom_left'),
-            'bottom_right': LocationPattern('bottom_right')
+            'bottom_right': LocationPattern('bottom_right'),
+            'bottom_center': LocationPattern('bottom_center'),  # Very common!
+            'top_center': LocationPattern('top_center')
         }
         
         # Number type learning
@@ -58,27 +60,43 @@ class AIPatternLearning:
             'arabic': NumberTypePattern('arabic')
         }
         
-        # Processing stats
+        # ADVANCED LEARNING STATS (YOUR VISION!)
         self.pages_processed = 0
         self.total_corners_scanned = 0
         self.corners_skipped = 0
-        self.learning_phase = True  # First 3 pages = learning
+        
+        # SEPARATE LEARNING FOR EACH NUMBERING STYLE
+        self.roman_detections = 0    # Count of roman numerals found (i, ii, iii, etc.)
+        self.arabic_detections = 0   # Count of arabic numbers found (1, 2, 3, etc.)
+        self.roman_learned = False   # True after 10 roman detections
+        self.arabic_learned = False  # True after 10 arabic detections
+        
         self.dominant_location: Optional[str] = None
         self.dominant_type: Optional[str] = None
         
         # Performance tracking
         self.scan_times: List[float] = []
         
-    def get_scan_order(self) -> List[str]:
+    def get_scan_order(self, expected_number_type: str = None) -> List[str]:
         """
-        SMART SCANNING: Return corners in order of likelihood
-        Most likely location checked FIRST!
+        BRILLIANT ADAPTIVE SCANNING: Return corners in order of likelihood per number type
+        YOUR VISION: Learn patterns for each numbering style separately!
         """
-        # Learning phase: scan all corners
-        if self.pages_processed < 3:
+        # LEARNING PHASE: Scan all corners until we have 10 detections of this number type
+        if expected_number_type == 'roman' and not self.roman_learned:
             if self.logger:
-                self.logger.debug("🎓 Learning phase: scanning all corners")
-            return ['top_left', 'top_right', 'bottom_left', 'bottom_right']
+                self.logger.debug(f"🎓 Roman learning phase: {self.roman_detections}/10 detections")
+            return ['top_left', 'top_right', 'bottom_center', 'top_center', 'bottom_left', 'bottom_right']
+        
+        elif expected_number_type == 'arabic' and not self.arabic_learned:
+            if self.logger:
+                self.logger.debug(f"🎓 Arabic learning phase: {self.arabic_detections}/10 detections")
+            return ['bottom_center', 'top_center', 'top_left', 'top_right', 'bottom_left', 'bottom_right']
+        
+        elif not self.roman_learned and not self.arabic_learned:
+            if self.logger:
+                self.logger.debug(f"🎓 General learning phase: Roman {self.roman_detections}/10, Arabic {self.arabic_detections}/10")
+            return ['bottom_center', 'top_center', 'top_left', 'top_right', 'bottom_left', 'bottom_right']
         
         # Sort by confidence (highest first)
         sorted_locations = sorted(
@@ -117,13 +135,29 @@ class AIPatternLearning:
     
     def record_success(self, location: str, number_type: str, page_num: int):
         """
-        Record successful detection - AI LEARNS!
+        Record successful detection - ADVANCED AI LEARNING PER NUMBER TYPE!
+        YOUR VISION: Count detections separately for roman vs arabic
         """
         # Update location pattern
         self.location_patterns[location].update_success(page_num)
         
-        # ADAPTIVE: Detect pattern changes!
-        self._detect_pattern_change(location, page_num)
+        # COUNT DETECTIONS BY NUMBER TYPE (YOUR BRILLIANT IDEA!)
+        if number_type == 'roman':
+            self.roman_detections += 1
+            if self.roman_detections == 10 and not self.roman_learned:
+                self.roman_learned = True
+                if self.logger:
+                    self.logger.info(f"🎓🎯 ROMAN LEARNING COMPLETE! 10 detections reached → Speed optimization activated!")
+                    
+        elif number_type == 'arabic':
+            self.arabic_detections += 1
+            if self.arabic_detections == 10 and not self.arabic_learned:
+                self.arabic_learned = True
+                if self.logger:
+                    self.logger.info(f"🎓🎯 ARABIC LEARNING COMPLETE! 10 detections reached → Speed optimization activated!")
+        
+        # ADAPTIVE: Detect pattern changes with number type context!
+        self._detect_pattern_change(location, page_num, number_type)
         
         # Update number type pattern
         if number_type in self.number_types:
@@ -135,39 +169,74 @@ class AIPatternLearning:
         
         if self.logger:
             confidence = self.location_patterns[location].confidence
-            self.logger.info(f"✅ AI Learning: {location} → {confidence:.0%} confidence ({self.location_patterns[location].success_count}/{self.location_patterns[location].total_attempts})")
+            self.logger.info(f"✅ AI Learning: {number_type} #{getattr(self, f'{number_type}_detections', 0)} in {location} → {confidence:.0%} confidence")
     
     def record_failure(self, location: str):
         """Record when location didn't have page number"""
         self.location_patterns[location].update_failure()
         self._update_dominant_patterns()
     
-    def _detect_pattern_change(self, current_location: str, page_num: int):
+    def _detect_pattern_change(self, current_location: str, page_num: int, number_type: str):
         """
-        SMART ADAPTATION: Detect when page number position changes!
-        Example: Pages 1-10 in top_left, then pages 11+ in top_right
+        ADVANCED PATTERN CHANGE DETECTION: Handle sudden position changes!
+        YOUR VISION: Detect position changes and adapt intelligently
         """
-        if not self.dominant_location or self.pages_processed < 5:
-            return  # Need at least 5 pages to detect changes
+        if not self.dominant_location:
+            return  # No established pattern yet
         
         # If we found number in a DIFFERENT location than dominant
         if current_location != self.dominant_location:
-            # Check if this is a consistent change (found 2+ times in new location recently)
+            # SMART DETECTION: Check if this is consistent change (3+ in new location)
             recent_success = self.location_patterns[current_location].success_count
             
-            if recent_success >= 2:
+            if recent_success >= 3:  # Require 3 confirmations to avoid false alarms
                 if self.logger:
-                    self.logger.warning(f"🔄 PATTERN CHANGE DETECTED! Switching from {self.dominant_location} → {current_location}")
-                    self.logger.info(f"   AI is RE-LEARNING the new pattern...")
+                    self.logger.warning(f"🔄 POSITION CHANGE DETECTED! {number_type} numbers moving from {self.dominant_location} → {current_location}")
+                    self.logger.info(f"   🎓 AI RE-LEARNING new {number_type} pattern...")
                 
-                # RESET learning to adapt to new pattern
-                self.learning_phase = True
-                self.pages_processed = 0  # Restart learning counter
+                # PARTIAL RESET: Don't lose ALL learning, just adapt
+                if number_type == 'roman' and self.roman_learned:
+                    # Roman numbers changed position - reduce confidence but don't fully reset
+                    self.roman_learned = False
+                    self.roman_detections = max(5, self.roman_detections - 5)  # Keep some progress
+                    
+                elif number_type == 'arabic' and self.arabic_learned:
+                    # Arabic numbers changed position - reduce confidence but don't fully reset  
+                    self.arabic_learned = False
+                    self.arabic_detections = max(5, self.arabic_detections - 5)  # Keep some progress
                 
-                # Keep the data but reduce confidence of old pattern
+                # GRADUAL ADAPTATION: Reduce old pattern confidence, don't eliminate
                 for loc, pattern in self.location_patterns.items():
                     if loc != current_location:
-                        pattern.confidence *= 0.5  # Reduce old patterns by 50%
+                        pattern.confidence *= 0.7  # Reduce old patterns by 30%
+                    else:
+                        pattern.confidence *= 1.2  # Boost new pattern by 20%
+                        
+                if self.logger:
+                    self.logger.info(f"   🧠 Adaptation complete: {number_type} detections retained, confidence adjusted")
+    
+    def handle_detection_failure_streak(self, expected_location: str, number_type: str):
+        """
+        EMERGENCY COUNTERMEASURE: Handle when expected location consistently fails
+        Example: System expects top_left but finds nothing for 5+ pages
+        """
+        pattern = self.location_patterns[expected_location]
+        
+        # If expected location failed too many times, trigger emergency re-scan
+        if pattern.total_attempts - pattern.success_count >= 5:  # 5 consecutive failures
+            if self.logger:
+                self.logger.warning(f"🚨 DETECTION FAILURE STREAK! {expected_location} failed 5+ times for {number_type}")
+                self.logger.info(f"   🔄 Triggering EMERGENCY FULL-SCAN mode")
+            
+            # EMERGENCY PROTOCOL: Force full corner scanning for next few pages
+            if number_type == 'roman':
+                self.roman_learned = False  # Force re-learning
+            elif number_type == 'arabic':
+                self.arabic_learned = False  # Force re-learning
+                
+            return True  # Signal to caller to do full scan
+        
+        return False
     
     def _update_dominant_patterns(self):
         """Determine which location and type are most common"""

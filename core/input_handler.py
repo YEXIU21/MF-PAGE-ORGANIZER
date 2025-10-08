@@ -192,22 +192,38 @@ class InputHandler:
         return ext in (self.SUPPORTED_IMAGE_FORMATS | self.SUPPORTED_DOCUMENT_FORMATS)
     
     def _natural_sort_key(self, file_path: Path) -> tuple:
-        """Generate sort key for natural sorting (handles numbers correctly)"""
+        """Generate sort key for natural sorting (PAGE NUMBER AWARE)"""
         import re
         
         name = file_path.stem.lower()
-        # Split into text and number parts
-        parts = re.findall(r'(\d+|\D+)', name)
         
-        # Convert number parts to integers for proper sorting
-        key_parts = []
-        for part in parts:
-            if part.isdigit():
-                key_parts.append(int(part))
-            else:
-                key_parts.append(part)
+        # Extract page number patterns (Page_001, 00023, etc.)
+        page_patterns = [
+            r'page_(\d+)',           # Page_001
+            r'_(\d{3,5})(?:\.|$)',   # _00023, _012
+            r'(\d{3,5})(?:\.|$)',    # 001, 0023
+        ]
         
-        return tuple(key_parts)
+        page_number = None
+        for pattern in page_patterns:
+            match = re.search(pattern, name)
+            if match:
+                page_number = int(match.group(1))
+                break
+        
+        if page_number is not None:
+            # Sort by page number first, then by original name
+            return (page_number, name)
+        else:
+            # Fallback to natural sorting
+            parts = re.findall(r'(\d+|\D+)', name)
+            key_parts = []
+            for part in parts:
+                if part.isdigit():
+                    key_parts.append(int(part))
+                else:
+                    key_parts.append(part)
+            return tuple([999999] + key_parts)  # Put non-page files at end
     
     def validate_input(self, input_path: Union[str, Path]) -> Dict[str, Any]:
         """

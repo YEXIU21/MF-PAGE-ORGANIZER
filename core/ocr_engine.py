@@ -3,13 +3,13 @@ Standalone OCR engine that works without external Tesseract installation
 Includes fallback methods for non-technical users
 """
 
-import re
-import cv2
-import numpy as np
-from typing import List, Dict, Any, Optional, Tuple, Set
-from PIL import Image
 import os
-import sys
+import json
+import hashlib
+import re
+from pathlib import Path
+from typing import List, Dict, Any, Optional, Tuple
+from PIL import Image
 import tempfile
 import subprocess
 from dataclasses import dataclass
@@ -18,8 +18,8 @@ from utils.config import config
 from utils.logger import ProcessLogger
 from core.smart_cache import SmartCache
 from core.input_handler import PageInfo
-from core.advanced_number_detector import AdvancedNumberDetector
-from core.advanced_image_analyzer import AdvancedImageAnalyzer
+from core.paddle_number_detector import PaddleNumberDetector
+from core.paddle_ocr_engine import PaddleOCREngine
 
 @dataclass
 class DetectedNumber:
@@ -63,26 +63,22 @@ class OCREngine:
         'section_number': r'\b(\d+)\.(\d+)\b'
     }
     
-    def __init__(self, logger: Optional[ProcessLogger] = None, ai_learning=None):
+    def __init__(self, logger: Optional[ProcessLogger] = None, ai_learning=None, output_dir=None):
         self.logger = logger
         self.config = config
         self.tesseract_available = self._check_tesseract()
         
-        # Initialize smart cache
-        self.smart_cache = SmartCache(logger)
+        # Initialize smart cache with output directory
+        self.smart_cache = SmartCache(logger, output_dir)
         
-        # Initialize advanced image analyzer with AI learning (ADAPTIVE)
-        # This creates the EasyOCR reader
-        self.advanced_analyzer = AdvancedImageAnalyzer(logger, ai_learning)
+        # Initialize PaddleOCR-based detector (BRILLIANT AI with existing modules)
+        self.paddle_detector = PaddleNumberDetector(logger, lang='en')
         
-        # Initialize advanced number detector with EasyOCR from analyzer (AI-like intelligence)
-        self.advanced_detector = AdvancedNumberDetector(logger, self.advanced_analyzer.ocr_reader)
+        # Initialize PaddleOCR engine for full text extraction
+        self.paddle_ocr = PaddleOCREngine(logger, lang='en')
         
-        # Initialize embedded OCR
-        self.embedded_ocr = None
-        if not self.tesseract_available:
-            from core.embedded_ocr import EmbeddedOCR
-            self.embedded_ocr = EmbeddedOCR()
+        # Keep embedded OCR as fallback
+        self.embedded_ocr = self.paddle_ocr
         
         # Check for bundled Tesseract or system Tesseract
         self._initialize_tesseract()
@@ -90,6 +86,11 @@ class OCREngine:
         # If no Tesseract, use embedded OCR
         if not self.tesseract_available:
             self._log_info("Using embedded OCR engine (no external installation required)")
+    
+    def _is_roman_numeral(self, text: str) -> bool:
+        """Check if text is a valid roman numeral"""
+        pattern = r'^[ivxlcdm]+$'
+        return bool(re.match(pattern, text.lower()))
     
     def _check_tesseract(self) -> bool:
         """Check if Tesseract is available"""
@@ -204,12 +205,12 @@ class OCREngine:
             # CRITICAL DEBUG: Log that we're about to call advanced detector
             if self.logger:
                 self.logger.info(f"🚀 ABOUT TO CALL ADVANCED DETECTOR for {page_info.original_name}")
-                self.logger.info(f"   Advanced detector exists: {self.advanced_detector is not None}")
+                self.logger.info(f"   Paddle detector exists: {self.paddle_detector is not None}")
                 self.logger.info(f"   Image loaded: {image.size}")
             
-            # PRIORITY FIX: Use advanced AI detector FIRST (corner/margin detection)
+            # PRIORITY FIX: Use EXISTING paddle detector (already has API fix)
             # This prevents content numbers from polluting the results
-            ai_candidate = self.advanced_detector.detect_page_number(
+            ai_candidate = self.paddle_detector.detect_page_number(
                 image, "", str(page_info.file_path)
             )
             
@@ -222,25 +223,29 @@ class OCREngine:
                 else:
                     self.logger.debug(f"❌ Advanced detector found nothing")
             
-            if ai_candidate and ai_candidate.confidence > 50:  # Lowered from 60 to 50
-                # AI found page number in corners/margins - USE IT!
-                if self.logger:
-                    self.logger.info(f"🤖 AI detected page {ai_candidate.number} in {ai_candidate.location}")
+            if ai_candidate and ai_candidate.confidence > 50:
+                # Convert AI candidate to DetectedNumber format
                 
-                # Create result with ONLY the AI-detected number (ignore content numbers)
-                ai_detected_number = DetectedNumber(
+                # Determine number type
+                if ai_candidate.text.lower() in ['i','ii','iii','iv','v','vi','vii','viii','ix','x','xi','xii','xiii','xiv','xv']:
+                    number_type = 'roman'
+                else:
+                    number_type = 'arabic'
+                
+                # Create DetectedNumber
+                detected_numbers = [DetectedNumber(
                     text=ai_candidate.text,
-                    number_type='roman' if any(c in ai_candidate.text.lower() for c in 'ivxlcdm') else 'arabic',
+                    number_type=number_type,
                     numeric_value=ai_candidate.number,
                     confidence=ai_candidate.confidence,
-                    position=(0, 0, 0, 0),  # Position not used in numbering system
-                    context=f"AI: {', '.join(ai_candidate.reasoning)}"
-                )
+                    position=ai_candidate.bbox if hasattr(ai_candidate, 'bbox') and ai_candidate.bbox else (0, 0, 100, 30),
+                    context=f"AI: {ai_candidate.reasoning[0] if ai_candidate.reasoning else 'AI detected'}"
+                )]
                 
                 result = OCRResult(
                     page_info=page_info,
                     full_text="",  # Don't need full text if we found page number
-                    detected_numbers=[ai_detected_number],
+                    detected_numbers=detected_numbers,
                     text_blocks=[],
                     language_confidence=ai_candidate.confidence / 100.0,
                     processing_time=0
@@ -316,49 +321,39 @@ class OCREngine:
             return self._process_with_fallback(image, page_info)
     
     def _process_with_embedded_ocr(self, image: Image.Image, page_info: PageInfo) -> OCRResult:
-        """Process with embedded OCR (no external dependencies)"""
+        """Process with PaddleOCR (ultra-fast, no external dependencies)"""
         try:
-            # Use embedded OCR engine
-            full_text = self.embedded_ocr.extract_text(image)
+            # Use PaddleOCR engine for full text
+            full_text = self.paddle_ocr.extract_text(image)
             
-            # Use advanced analyzer for challenging images
+            # Use PADDLE CORNER-FOCUSED detector (ULTRA-FAST, ACCURATE)
             if self.config.get('ocr.use_advanced_analysis', True):
-                advanced_result = self.advanced_analyzer.analyze_image_comprehensively(
-                    image, page_info.original_name)
+                self._log_info(f"Using PaddleOCR detector for {page_info.original_name}")
                 
-                if advanced_result.best_page_number and advanced_result.overall_confidence > 0.6:
-                    self._log_info(f"✨ Advanced analysis found: {advanced_result.best_page_number} "
-                                 f"(confidence: {advanced_result.overall_confidence:.1%})")
+                # Use PaddleOCR number detector (corner-focused)
+                detected_candidate = self.paddle_detector.detect_page_number(
+                    image, full_text, page_info.original_name)
+                
+                if detected_candidate and detected_candidate.confidence > 70:
+                    self._log_info(f"PaddleOCR found: {detected_candidate.text} "
+                                 f"(conf: {detected_candidate.confidence:.1f}%, loc: {detected_candidate.location})")
                     
-                    # Convert advanced results to DetectedNumber objects
-                    detected_numbers = []
-                    for i, page_num in enumerate(advanced_result.page_numbers):
-                        detected_numbers.append(DetectedNumber(
-                            text=page_num,
-                            number_type='arabic' if page_num.isdigit() else 'mixed',
-                            numeric_value=int(page_num) if page_num.isdigit() else None,
-                            confidence=advanced_result.confidence_scores[i] * 100,
-                            position=advanced_result.text_positions[i] if i < len(advanced_result.text_positions) else (0, 0, 100, 30),
-                            context=f"Advanced analysis: {advanced_result.text_orientations[i] if i < len(advanced_result.text_orientations) else 'unknown'}"
-                        ))
+                    # Convert to DetectedNumber object
+                    detected_numbers = [DetectedNumber(
+                        text=detected_candidate.text,
+                        number_type='roman' if detected_candidate.text.lower() in ['i','ii','iii','iv','v','vi','vii','viii','ix','x','xi','xii'] else 'arabic',
+                        numeric_value=detected_candidate.number,
+                        confidence=detected_candidate.confidence,
+                        position=detected_candidate.bbox if detected_candidate.bbox else (0, 0, 100, 30),
+                        context=f"PaddleOCR: {detected_candidate.location}"
+                    )]
                 else:
-                    # Fallback to standard embedded OCR
-                    detected_numbers_data = self.embedded_ocr.detect_page_numbers(full_text, page_info.original_name)
-                    
-                    # Convert to DetectedNumber objects
+                    # No corner number found - likely blank/title page
+                    self._log_info(f"No corner number (blank/title page)")
                     detected_numbers = []
-                    for num_data in detected_numbers_data:
-                        detected_numbers.append(DetectedNumber(
-                            text=num_data['text'],
-                            number_type=num_data['type'],
-                            numeric_value=num_data.get('value'),
-                            confidence=num_data['confidence'],
-                            position=(0, 0, 100, 30),  # Dummy position
-                            context=num_data.get('context', '')
-                        ))
             else:
-                # Standard embedded OCR
-                detected_numbers_data = self.embedded_ocr.detect_page_numbers(full_text, page_info.original_name)
+                # Standard PaddleOCR fallback
+                detected_numbers_data = self.paddle_ocr.detect_page_numbers(full_text, page_info.original_name)
                 
                 # Convert to DetectedNumber objects
                 detected_numbers = []
@@ -368,7 +363,7 @@ class OCREngine:
                         number_type=num_data['type'],
                         numeric_value=num_data.get('value'),
                         confidence=num_data['confidence'],
-                        position=(0, 0, 100, 30),  # Dummy position
+                        position=(0, 0, 100, 30),
                         context=num_data.get('context', '')
                     ))
             

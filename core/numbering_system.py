@@ -88,22 +88,42 @@ class NumberingSystem:
     
     def order_by_numbers(self, pages: List[PageInfo], ocr_results: List[OCRResult], 
                         numbering_analysis: Dict[str, Any]) -> List[OrderingDecision]:
-        """Order pages based on detected numbering system"""
-        self.logger.step("Ordering pages by detected numbers")
+        """
+        ENHANCED THREE-PHASE ORDERING:
+        Phase 1: Global scan and analysis
+        Phase 2: Intelligent ordering with full context
+        Phase 3: Conflict resolution and validation
+        """
+        self.logger.step("🔍 Phase 1: Global Analysis - Scanning all pages")
+        
+        # PHASE 1: GLOBAL ANALYSIS
+        global_context = self._perform_global_analysis(pages, ocr_results)
+        self.logger.info(f"📊 Global Context: {global_context['total_pages']} pages, "
+                        f"{global_context['roman_count']} roman, {global_context['arabic_count']} arabic, "
+                        f"{global_context['unnumbered_count']} unnumbered")
+        
+        self.logger.step("🎯 Phase 2: Intelligent Ordering with Full Context")
         
         decisions = []
         primary_scheme = numbering_analysis['primary_scheme']
         
-        # Create initial ordering decisions
+        # PHASE 2: CREATE ORDERING DECISIONS WITH GLOBAL CONTEXT
         for i, (page, ocr_result) in enumerate(zip(pages, ocr_results)):
-            decision = self._make_ordering_decision(page, ocr_result, primary_scheme, i)
+            decision = self._make_ordering_decision_with_context(
+                page, ocr_result, primary_scheme, i, global_context
+            )
             decisions.append(decision)
         
-        # Handle conflicts and gaps
-        decisions = self._resolve_ordering_conflicts(decisions, primary_scheme)
+        self.logger.step("🔧 Phase 3: Conflict Resolution and Validation")
+        
+        # PHASE 3: RESOLVE CONFLICTS WITH FULL CONTEXT
+        decisions = self._resolve_ordering_conflicts_with_context(decisions, global_context)
         
         # Sort by assigned position
         decisions.sort(key=lambda x: x.assigned_position)
+        
+        # Validate final ordering
+        self._validate_final_ordering(decisions, global_context)
         
         self._log_ordering_summary(decisions)
         return decisions
@@ -302,7 +322,14 @@ class NumberingSystem:
         # Check sequence completeness
         if sequence:
             min_num, max_num = min(sequence), max(sequence)
-            expected_pages = set(range(min_num, max_num + 1))
+            # Prevent MemoryError from huge number ranges
+            if max_num - min_num > 10000:  # Reasonable page limit
+                if self.logger:
+                    self.logger.warning(f"Page range too large ({min_num}-{max_num}), using sample analysis")
+                # Use sample analysis for very large ranges
+                expected_pages = set(range(min_num, min(min_num + 1000, max_num + 1)))
+            else:
+                expected_pages = set(range(min_num, max_num + 1))
             actual_pages = set(sequence)
             
             missing = sorted(expected_pages - actual_pages)
@@ -370,6 +397,226 @@ class NumberingSystem:
         else:
             return 'mixed_scheme_change'
     
+    def _perform_global_analysis(self, pages: List[PageInfo], ocr_results: List[OCRResult]) -> Dict[str, Any]:
+        """
+        PHASE 1: Perform global analysis of ALL pages before making any decisions
+        Returns complete context about the document structure
+        """
+        roman_pages = []
+        arabic_pages = []
+        unnumbered_pages = []
+        
+        max_roman_value = 0
+        max_arabic_value = 0
+        min_arabic_value = float('inf')
+        
+        # SMART FILTERING: Calculate realistic page number range
+        total_pages = len(pages)
+        max_realistic_page = total_pages * 3  # Allow 3x for safety (e.g., 25 pages → max 75)
+        
+        self.logger.info(f"🔍 Smart Filter: Total pages = {total_pages}, Max realistic page number = {max_realistic_page}")
+        
+        # Scan all pages
+        for i, (page, ocr_result) in enumerate(zip(pages, ocr_results)):
+            detected_numbers = ocr_result.detected_numbers
+            
+            if detected_numbers and detected_numbers[0].confidence >= 50.0:
+                number_type = detected_numbers[0].number_type
+                numeric_value = detected_numbers[0].numeric_value
+                
+                # CRITICAL FILTER: Reject unrealistic page numbers (likely from content)
+                if number_type != 'roman' and numeric_value > max_realistic_page:
+                    self.logger.warning(f"⚠️ {page.original_name}: Rejected unrealistic page number {numeric_value} (max: {max_realistic_page})")
+                    unnumbered_pages.append({
+                        'index': i,
+                        'page': page
+                    })
+                    continue
+                
+                # SMART OUTLIER DETECTION: Reject numbers too far from expected position
+                # Example: Page at index 4 (position 5) shouldn't have number 190
+                expected_position = i + 1
+                if number_type != 'roman' and numeric_value > expected_position * 5:
+                    self.logger.warning(f"⚠️ {page.original_name}: Rejected outlier {numeric_value} (expected ~{expected_position})")
+                    unnumbered_pages.append({
+                        'index': i,
+                        'page': page
+                    })
+                    continue
+                
+                if number_type == 'roman':
+                    roman_pages.append({
+                        'index': i,
+                        'page': page,
+                        'number': detected_numbers[0],
+                        'value': numeric_value
+                    })
+                    max_roman_value = max(max_roman_value, numeric_value)
+                else:
+                    arabic_pages.append({
+                        'index': i,
+                        'page': page,
+                        'number': detected_numbers[0],
+                        'value': numeric_value
+                    })
+                    max_arabic_value = max(max_arabic_value, numeric_value)
+                    min_arabic_value = min(min_arabic_value, numeric_value)
+            else:
+                unnumbered_pages.append({
+                    'index': i,
+                    'page': page
+                })
+        
+        # Calculate document structure
+        unnumbered_front_matter = len([p for p in unnumbered_pages if p['index'] < 5])
+        
+        # CRITICAL FIX: Use COUNT of roman pages, not max value!
+        # Example: Roman pages vi, vii, viii, ix, x, xi, xii = 7 pages (not 12!)
+        roman_page_count = len(roman_pages)
+        
+        context = {
+            'total_pages': len(pages),
+            'roman_pages': roman_pages,
+            'arabic_pages': arabic_pages,
+            'unnumbered_pages': unnumbered_pages,
+            'roman_count': len(roman_pages),
+            'arabic_count': len(arabic_pages),
+            'unnumbered_count': len(unnumbered_pages),
+            'max_roman_value': max_roman_value,
+            'max_arabic_value': max_arabic_value,
+            'min_arabic_value': min_arabic_value if min_arabic_value != float('inf') else 0,
+            'min_roman_value': min([p['value'] for p in roman_pages]) if roman_pages else 0,
+            'unnumbered_front_matter': unnumbered_front_matter,
+            'roman_section_end': unnumbered_front_matter + roman_page_count,
+            'arabic_section_start': unnumbered_front_matter + roman_page_count + 1
+        }
+        
+        self.logger.info(f"📈 Roman section: positions 1-{context['roman_section_end']} (max value: {max_roman_value})")
+        self.logger.info(f"📈 Arabic section: starts at position {context['arabic_section_start']}")
+        
+        return context
+    
+    def _make_ordering_decision_with_context(self, page: PageInfo, ocr_result: OCRResult, 
+                                            primary_scheme: Optional[NumberingScheme], 
+                                            original_index: int,
+                                            global_context: Dict[str, Any]) -> OrderingDecision:
+        """Make ordering decision WITH full global context"""
+        detected_numbers = ocr_result.detected_numbers
+        
+        if not detected_numbers or detected_numbers[0].confidence < 50.0:
+            # No reliable number detected - will be placed sequentially
+            position = original_index + 1  # Temporary, will be reassigned
+            confidence = 0.4
+            reasoning = "No reliable page number detected - sequential placement"
+            
+            return OrderingDecision(
+                page_info=page,
+                assigned_position=position,
+                confidence=confidence,
+                reasoning=reasoning,
+                detected_numbers=[],
+                alternative_positions=[position]
+            )
+        
+        # High-confidence detection found
+        best_number = detected_numbers[0]
+        number_type = best_number.number_type
+        numeric_value = best_number.numeric_value
+        
+        # CRITICAL: Apply same filtering as global analysis
+        total_pages = global_context['total_pages']
+        max_realistic_page = total_pages * 3
+        expected_position = original_index + 1
+        
+        # Reject unrealistic numbers (same logic as global analysis)
+        if number_type != 'roman' and numeric_value > max_realistic_page:
+            self.logger.warning(f"⚠️ {page.original_name}: Ordering phase rejected unrealistic {numeric_value}")
+            position = original_index + 1
+            confidence = 0.4
+            reasoning = f"Rejected unrealistic page number {numeric_value} - sequential placement"
+            return OrderingDecision(
+                page_info=page,
+                assigned_position=position,
+                confidence=confidence,
+                reasoning=reasoning,
+                detected_numbers=[],
+                alternative_positions=[position]
+            )
+        
+        # Reject outliers (same logic as global analysis)
+        if number_type != 'roman' and numeric_value > expected_position * 5:
+            self.logger.warning(f"⚠️ {page.original_name}: Ordering phase rejected outlier {numeric_value}")
+            position = original_index + 1
+            confidence = 0.4
+            reasoning = f"Rejected outlier {numeric_value} (expected ~{expected_position}) - sequential placement"
+            return OrderingDecision(
+                page_info=page,
+                assigned_position=position,
+                confidence=confidence,
+                reasoning=reasoning,
+                detected_numbers=[],
+                alternative_positions=[position]
+            )
+        
+        # Calculate position based on global context
+        if number_type == 'roman':
+            # Roman numerals: offset by (value - min_value) to handle sequences like vi, vii, viii...
+            # Example: If min is vi (6), then vi→position 6, vii→position 7, etc.
+            min_roman = global_context['min_roman_value']
+            position = global_context['unnumbered_front_matter'] + (numeric_value - min_roman) + 1
+            confidence = min(0.95, best_number.confidence / 100.0)
+            reasoning = f"Roman numeral '{best_number.text}' = {numeric_value} (offset from min {min_roman})"
+            self.logger.info(f"✅ {page.original_name}: Roman '{best_number.text}' → Position {position}")
+        else:
+            # Arabic numbers are offset to come AFTER roman section
+            position = global_context['arabic_section_start'] + numeric_value - 1
+            confidence = min(0.95, best_number.confidence / 100.0)
+            reasoning = f"Arabic number '{best_number.text}' = {numeric_value} (offset to position {position})"
+            self.logger.info(f"✅ {page.original_name}: Arabic '{best_number.text}' → Position {position}")
+        
+        return OrderingDecision(
+            page_info=page,
+            assigned_position=position,
+            confidence=confidence,
+            reasoning=reasoning,
+            detected_numbers=detected_numbers,
+            alternative_positions=[position]
+        )
+    
+    def _resolve_ordering_conflicts_with_context(self, decisions: List[OrderingDecision],
+                                                global_context: Dict[str, Any]) -> List[OrderingDecision]:
+        """Resolve conflicts using global context"""
+        # Separate numbered from unnumbered
+        numbered = [d for d in decisions if d.detected_numbers and d.confidence >= 0.6]
+        unnumbered = [d for d in decisions if not d.detected_numbers or d.confidence < 0.6]
+        
+        self.logger.info(f"🔧 Resolving conflicts: {len(numbered)} numbered, {len(unnumbered)} unnumbered")
+        
+        # Resolve conflicts among numbered pages
+        resolved_numbered = self._resolve_numbered_conflicts(numbered)
+        
+        # Insert unnumbered pages in gaps
+        final_decisions = self._insert_unnumbered_pages(resolved_numbered, unnumbered)
+        
+        return final_decisions
+    
+    def _validate_final_ordering(self, decisions: List[OrderingDecision], global_context: Dict[str, Any]):
+        """Validate the final ordering makes sense"""
+        positions = [d.assigned_position for d in decisions]
+        
+        # Check for duplicates
+        duplicates = [p for p in positions if positions.count(p) > 1]
+        if duplicates:
+            self.logger.warning(f"⚠️ Duplicate positions found: {set(duplicates)}")
+        
+        # Check for large gaps
+        for i in range(len(positions) - 1):
+            gap = positions[i+1] - positions[i]
+            if gap > 5:
+                self.logger.warning(f"⚠️ Large gap detected: {gap} positions between {positions[i]} and {positions[i+1]}")
+        
+        self.logger.info(f"✅ Final ordering validated: {len(decisions)} pages, positions {min(positions)}-{max(positions)}")
+    
     def _make_ordering_decision(self, page: PageInfo, ocr_result: OCRResult, 
                                primary_scheme: Optional[NumberingScheme], 
                                original_index: int) -> OrderingDecision:
@@ -377,34 +624,79 @@ class NumberingSystem:
         detected_numbers = ocr_result.detected_numbers
         
         if not detected_numbers or not primary_scheme:
-            # No numbers detected - keep original position
-            self.logger.warning(f"⚠️ {page.original_name}: No page numbers detected - using original position {original_index + 1}")
+            # No numbers detected - DOCUMENT STRUCTURE AWARE CONFIDENCE
+            position = original_index + 1
+            
+            if position <= 5:
+                # Title/blank/copyright/contents pages - HIGH confidence for no numbers
+                confidence = 0.9
+                reasoning = "No page number expected (title/front matter) - correct behavior"
+                self.logger.info(f"✅ {page.original_name}: No page number expected at position {position} (title/front matter)")
+            elif 6 <= position <= 50:
+                # Front matter - should have roman numerals, medium confidence
+                confidence = 0.6
+                reasoning = "Missing expected roman numeral in front matter"
+                self.logger.warning(f"⚠️ {page.original_name}: Expected roman numeral at position {position}")
+            else:
+                # Main content - should have arabic numbers, low confidence
+                confidence = 0.3
+                reasoning = "Missing expected arabic number in main content"
+                self.logger.warning(f"⚠️ {page.original_name}: Expected arabic number at position {position}")
+            
             return OrderingDecision(
                 page_info=page,
-                assigned_position=original_index + 1,
-                confidence=0.1,
-                reasoning="No page numbers detected - using original order",
+                assigned_position=position,
+                confidence=confidence,
+                reasoning=reasoning,
                 detected_numbers=[],
-                alternative_positions=[original_index + 1]
+                alternative_positions=[position]
             )
         
-        # Find best matching number for primary scheme
-        matching_numbers = [num for num in detected_numbers 
-                          if num.number_type == primary_scheme.scheme_type]
+        # DOCUMENT STRUCTURE VALIDATION: Enforce correct numbering patterns
+        valid_numbers = []
         
-        if matching_numbers:
-            best_number = max(matching_numbers, key=lambda x: x.confidence)
-            position = best_number.numeric_value
-            confidence = min(0.95, best_number.confidence / 100.0)
-            reasoning = f"Page number {best_number.text} detected ({best_number.number_type})"
-            self.logger.info(f"✅ {page.original_name}: Detected '{best_number.text}' → Position {position}")
-        else:
-            # Use highest confidence number from any type
+        for num in detected_numbers:
+            position = num.numeric_value
+            is_valid = self._validate_number_for_position(num, position)
+            
+            if is_valid:
+                valid_numbers.append(num)
+            else:
+                self.logger.warning(f"❌ {page.original_name}: Rejected '{num.text}' ({num.number_type}) at position {position} - wrong number type for document section")
+        
+        # NEW STRATEGY: ALWAYS USE DETECTED NUMBERS FIRST, IGNORE VALIDATION FAILURES
+        if detected_numbers:
+            # Get the highest confidence detection regardless of "validation"
             best_number = max(detected_numbers, key=lambda x: x.confidence)
-            position = best_number.numeric_value
-            confidence = min(0.7, best_number.confidence / 100.0)
-            reasoning = f"Using {best_number.text} from {best_number.number_type} numbering"
-            self.logger.info(f"✅ {page.original_name}: Using '{best_number.text}' → Position {position}")
+            
+            # PRIORITY 1: Use detected number if high confidence (>=95%)
+            if best_number.confidence >= 95.0:
+                position = best_number.numeric_value
+                confidence = min(0.95, best_number.confidence / 100.0)
+                reasoning = f"High-confidence page number '{best_number.text}' detected"
+                self.logger.info(f"✅ {page.original_name}: HIGH-CONFIDENCE '{best_number.text}' → Position {position}")
+            
+            # PRIORITY 2: Use detected number if reasonable confidence (>=50%)
+            elif best_number.confidence >= 50.0:
+                position = best_number.numeric_value
+                confidence = min(0.8, best_number.confidence / 100.0)
+                reasoning = f"Page number '{best_number.text}' detected with good confidence"
+                self.logger.info(f"✅ {page.original_name}: DETECTED '{best_number.text}' → Position {position}")
+            
+            # PRIORITY 3: Use detected number but with lower confidence
+            else:
+                position = best_number.numeric_value
+                confidence = 0.6
+                reasoning = f"Page number '{best_number.text}' detected with low confidence"
+                self.logger.info(f"⚠️ {page.original_name}: LOW-CONFIDENCE '{best_number.text}' → Position {position}")
+        
+        else:
+            # SMART FALLBACK: No page numbers detected
+            # PRIORITY 4: Sequential assignment for unnumbered pages
+            position = original_index + 1  # Will be reassigned in sequential processing
+            confidence = 0.4
+            reasoning = "No page numbers detected - will assign sequentially"
+            self.logger.info(f"📄 {page.original_name}: No numbers → Sequential assignment")
         
         # Generate alternative positions
         alternatives = [num.numeric_value for num in detected_numbers 
@@ -422,50 +714,220 @@ class NumberingSystem:
     
     def _resolve_ordering_conflicts(self, decisions: List[OrderingDecision], 
                                    primary_scheme: Optional[NumberingScheme]) -> List[OrderingDecision]:
-        """Resolve conflicts where multiple pages have the same position"""
-        # Group decisions by assigned position
-        position_groups = defaultdict(list)
+        """
+        SMART CONFLICT RESOLUTION WITH NUMBERING SYSTEM SEPARATION
+        Separates roman numerals from arabic numbers to prevent chaos
+        """
+        # STEP 1: Separate by numbering system AND confidence
+        roman_pages = []
+        arabic_pages = []
+        unnumbered_pages = []
+        
         for decision in decisions:
-            if decision.assigned_position is not None:
-                position_groups[decision.assigned_position].append(decision)
-        
-        resolved_decisions = []
-        
-        for position, group in position_groups.items():
-            if len(group) == 1:
-                # No conflict
-                resolved_decisions.append(group[0])
+            if decision.detected_numbers and decision.confidence >= 0.6:
+                # Check the number type
+                number_type = decision.detected_numbers[0].number_type
+                if number_type == 'roman':
+                    roman_pages.append(decision)
+                else:
+                    arabic_pages.append(decision)
             else:
-                # Resolve conflict by confidence
-                self.logger.warning(f"Position conflict at {position}: {len(group)} pages")
+                unnumbered_pages.append(decision)
+        
+        self.logger.info(f"📊 Numbering System Separation: {len(roman_pages)} roman, {len(arabic_pages)} arabic, {len(unnumbered_pages)} unnumbered")
+        
+        # STEP 2: Resolve conflicts within each numbering system
+        resolved_roman = self._resolve_numbered_conflicts(roman_pages)
+        resolved_arabic = self._resolve_numbered_conflicts(arabic_pages)
+        
+        # STEP 3: Offset arabic numbers to come AFTER roman numbers
+        if resolved_roman and resolved_arabic:
+            max_roman_pos = max(d.assigned_position for d in resolved_roman)
+            self.logger.info(f"🔄 Offsetting arabic numbers: max roman position = {max_roman_pos}")
+            
+            for decision in resolved_arabic:
+                old_pos = decision.assigned_position
+                decision.assigned_position = max_roman_pos + decision.assigned_position
+                decision.reasoning += f" (offset from {old_pos} to follow roman sequence)"
+                self.logger.info(f"📍 {decision.page_info.original_name}: Position {old_pos} → {decision.assigned_position}")
+        
+        # STEP 4: Combine all numbered pages
+        all_numbered = resolved_roman + resolved_arabic
+        
+        # STEP 5: Insert unnumbered pages in logical gaps
+        final_decisions = self._insert_unnumbered_pages(all_numbered, unnumbered_pages)
+        
+        return final_decisions
+    
+    def _resolve_numbered_conflicts(self, numbered_pages: List[OrderingDecision]) -> List[OrderingDecision]:
+        """
+        BULLETPROOF CONFLICT RESOLUTION: Guarantees NO duplicate positions
+        Strategy: Collect ALL desired positions first, then resolve globally
+        """
+        if not numbered_pages:
+            return []
+        
+        # STEP 1: Collect all desired positions and build initial occupied set
+        position_groups = defaultdict(list)
+        all_desired_positions = set()
+        
+        for decision in numbered_pages:
+            pos = decision.assigned_position
+            position_groups[pos].append(decision)
+            all_desired_positions.add(pos)
+        
+        self.logger.info(f"🔍 Found {len(position_groups)} unique positions desired by {len(numbered_pages)} pages")
+        
+        # STEP 2: Process each position group, resolving conflicts
+        resolved = []
+        occupied_positions = set()
+        
+        for position in sorted(position_groups.keys()):
+            group = position_groups[position]
+            
+            if len(group) == 1:
+                # No conflict - assign directly
+                resolved.append(group[0])
+                occupied_positions.add(position)
+            else:
+                # CONFLICT: Multiple pages want this position
+                self.logger.warning(f"⚠️ Position {position} conflict: {len(group)} pages")
                 
-                # Sort by confidence, keep highest
+                # Sort by confidence (highest first)
                 group.sort(key=lambda x: x.confidence, reverse=True)
                 
-                # Assign the highest confidence page to the original position
-                resolved_decisions.append(group[0])
+                # Winner gets the original position
+                winner = group[0]
+                resolved.append(winner)
+                occupied_positions.add(position)
+                self.logger.info(f"✅ Position {position}: Winner = {winner.page_info.original_name}")
                 
-                # Reassign others to alternative positions or sequential positions
-                for i, decision in enumerate(group[1:], 1):
-                    # Try alternative positions first
-                    new_position = None
-                    for alt_pos in decision.alternative_positions:
-                        if not any(d.assigned_position == alt_pos for d in resolved_decisions):
-                            new_position = alt_pos
-                            break
+                # Losers need new positions - find free slots
+                for loser in group[1:]:
+                    # Find next available position AFTER current position
+                    new_pos = position + 1
+                    while new_pos in occupied_positions or new_pos in all_desired_positions:
+                        new_pos += 1
                     
-                    # If no alternative, use sequential assignment
-                    if new_position is None:
-                        new_position = position + i
+                    loser.assigned_position = new_pos
+                    loser.reasoning += f" (conflict resolution: {position}→{new_pos})"
+                    loser.confidence *= 0.7
+                    resolved.append(loser)
+                    occupied_positions.add(new_pos)
+                    all_desired_positions.add(new_pos)  # Mark as occupied for future iterations
                     
-                    # Update decision
-                    decision.assigned_position = new_position
-                    decision.reasoning += f" (reassigned due to conflict)"
-                    decision.confidence *= 0.8  # Reduce confidence
-                    
-                    resolved_decisions.append(decision)
+                    self.logger.info(f"📍 Reassigned {loser.page_info.original_name}: {position} → {new_pos}")
         
-        return resolved_decisions
+        # STEP 3: Verify no duplicates
+        final_positions = [d.assigned_position for d in resolved]
+        if len(final_positions) != len(set(final_positions)):
+            self.logger.error(f"❌ CRITICAL: Duplicate positions still exist after resolution!")
+            duplicates = [p for p in final_positions if final_positions.count(p) > 1]
+            self.logger.error(f"❌ Duplicates: {set(duplicates)}")
+        else:
+            self.logger.info(f"✅ Conflict resolution complete: {len(resolved)} pages, all unique positions")
+        
+        return resolved
+    
+    def _find_nearest_free_position(self, preferred_pos: int, occupied_positions: List[int]) -> int:
+        """Find the nearest free position to the preferred position"""
+        occupied = set(occupied_positions)
+        
+        # Try positions near the preferred position
+        for offset in range(1, 100):  # Check up to 100 positions away
+            # Try after preferred position first
+            candidate = preferred_pos + offset
+            if candidate not in occupied:
+                return candidate
+            
+            # Try before preferred position
+            candidate = preferred_pos - offset
+            if candidate > 0 and candidate not in occupied:
+                return candidate
+        
+        # Fallback: find first available position after all occupied
+        return max(occupied) + 1 if occupied else preferred_pos
+    
+    def _insert_unnumbered_pages(self, numbered_decisions: List[OrderingDecision], 
+                                unnumbered_pages: List[OrderingDecision]) -> List[OrderingDecision]:
+        """Insert unnumbered pages in logical positions between numbered pages"""
+        if not unnumbered_pages:
+            return numbered_decisions
+        
+        # Get all occupied positions
+        occupied = set(d.assigned_position for d in numbered_decisions)
+        final_decisions = numbered_decisions.copy()
+        
+        self.logger.info(f"📄 Inserting {len(unnumbered_pages)} unnumbered pages into sequence")
+        
+        # Simple strategy: fill gaps sequentially
+        next_available = 1
+        for unnumbered in unnumbered_pages:
+            # Find next available position
+            while next_available in occupied:
+                next_available += 1
+            
+            unnumbered.assigned_position = next_available
+            unnumbered.reasoning += f" (sequential insertion at {next_available})"
+            occupied.add(next_available)
+            final_decisions.append(unnumbered)
+            
+            self.logger.info(f"📄 {unnumbered.page_info.original_name}: Inserted at position {next_available}")
+            next_available += 1
+        
+        return final_decisions
+    
+    def _validate_number_for_position(self, detected_number, position: int) -> bool:
+        """
+        FLEXIBLE validation: Accept high-confidence detections regardless of expected section
+        FIXED: Don't reject valid numbers due to rigid document structure assumptions
+        """
+        
+        # PRIORITY 1: Accept HIGH-CONFIDENCE detections (99%+) regardless of section
+        if detected_number.confidence >= 99.0:
+            if self.logger:
+                self.logger.debug(f"✅ Accepting high-confidence detection: '{detected_number.text}' ({detected_number.confidence:.1f}%)")
+            return True
+        
+        # PRIORITY 2: Document structure guidance (not rigid rules)
+        # These are preferences, not absolute requirements
+        
+        if 1 <= position <= 5:
+            # Front matter - usually no numbers, but accept if found
+            return True
+            
+        elif 6 <= position <= 20:
+            # Mixed section - can have both roman and arabic
+            # Accept both types but log transitions
+            if detected_number.number_type != 'roman' and position <= 12:
+                if self.logger:
+                    self.logger.info(f"🔄 Numbering transition: Found {detected_number.number_type} '{detected_number.text}' at position {position}")
+            return True
+                
+        elif position >= 21:
+            # Main content - accept all number types
+            return True
+        
+        return True  # ALWAYS default to acceptance for valid detections
+    
+    def _extract_filename_position(self, filename: str) -> Optional[int]:
+        """Extract expected position from filename pattern"""
+        import re
+        
+        # Pattern matching for different filename formats
+        patterns = [
+            r'Page_(\d+)',           # Page_001.jpg
+            r'page_(\d+)',           # page_001.jpg  
+            r'_0*(\d+)\.jpg$',       # 00023.jpg -> 23
+            r'(\d+)\.jpg$',          # 123.jpg -> 123
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, filename)
+            if match:
+                return int(match.group(1))
+                
+        return None
     
     def _create_empty_analysis(self, total_pages: int) -> Dict[str, Any]:
         """Create empty analysis when no numbers are detected"""

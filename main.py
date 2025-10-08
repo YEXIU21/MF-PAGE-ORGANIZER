@@ -42,28 +42,29 @@ class PageReorderCLI:
         self.confidence_system = None
         self.output_manager = None
     
-    def setup_components(self, args):
+    def setup_components(self, args, output_dir=None):
         """Initialize all system components"""
         # Update config from command line arguments
         config.update_from_args(args)
         
-        # Setup logger
-        log_file = f"logs/page_reorder_{Path(args.input).stem}.log" if args.log else None
+        # Setup logger (store log in output directory if available)
+        log_file = None
+        if output_dir:
+            log_file = Path(output_dir) / "process.log"
         self.logger = create_logger(log_file=log_file, verbose=args.verbose)
         
         # Initialize AI learning system FIRST (for adaptive behavior)
         self.ai_learning = AILearningSystem(self.logger)
         
-        # Initialize components with AI learning integration
-        self.input_handler = InputHandler(self.logger)
-        self.preprocessor = Preprocessor(self.logger)
-        self.ocr_engine = OCREngine(self.logger, self.ai_learning)  # ADAPTIVE: Pass AI learning
+        self.performance_optimizer = PerformanceOptimizer(self.logger)
+        self.input_handler = InputHandler(self.logger)  # FIXED: Missing input handler
+        self.preprocessor = Preprocessor(self.logger)   # FIXED: Missing preprocessor 
+        self.ocr_engine = OCREngine(self.logger, self.ai_learning, output_dir)  # IMPROVED: Pass output dir for cache
         self.numbering_system = NumberingSystem(self.logger)
         self.content_analyzer = ContentAnalyzer(self.logger)
         self.confidence_system = ConfidenceSystem(self.logger)
         self.output_manager = OutputManager(self.logger)
         self.blank_page_detector = BlankPageDetector(self.logger)
-        self.performance_optimizer = PerformanceOptimizer(self.logger)
         self.cancel_processing = False
     
     def process_pages(self, input_path: str, output_path: str) -> bool:
@@ -279,10 +280,7 @@ class PageReorderCLI:
     
     def run(self, args):
         """Run the page reordering process with given arguments"""
-        try:
-            # Setup components
-            self.setup_components(args)
-            
+        try:            
             # Validate input path
             input_path = Path(args.input)
             if not input_path.exists():
@@ -316,6 +314,9 @@ class PageReorderCLI:
                     # For single file, use parent folder
                     output_path = input_path.parent / "reordered"
                     output_path.mkdir(parents=True, exist_ok=True)
+            
+            # Setup components with output directory for cache
+            self.setup_components(args, str(output_path))
             
             self.logger.info("🚀 AI Page Reordering Automation System")
             self.logger.info(f"Input: {input_path}")
