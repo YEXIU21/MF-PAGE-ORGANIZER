@@ -40,7 +40,7 @@ class MFPageOrganizerApp:
         self.root.title("MF Page Organizer - Smart Document Organizer")
         
         # Theme management (will be applied after UI is built)
-        self.current_theme = "system"  # system, light, dark
+        self.current_theme = "dark"  # Force dark mode for now
         self.detect_system_theme()
         
         # Set window to 80% of screen size
@@ -51,16 +51,29 @@ class MFPageOrganizerApp:
         self.root.geometry(f"{window_width}x{window_height}")
         self.root.resizable(True, True)
         
+        # Set minimum size to prevent shrinking too much
+        min_width = 800
+        min_height = 600
+        self.root.minsize(min_width, min_height)
+        
         # Set window icon if available
         try:
             if getattr(sys, 'frozen', False):
-                icon_path = os.path.join(sys._MEIPASS, 'app_icon.ico')
+                # Running as EXE
+                icon_path = os.path.join(sys._MEIPASS, 'PageAutomation.ico')
+                if os.path.exists(icon_path):
+                    self.root.iconbitmap(icon_path)
             else:
-                icon_path = 'app_icon.ico'
-            if os.path.exists(icon_path):
-                self.root.iconbitmap(icon_path)
-        except:
-            pass
+                # Running as script - convert PNG to ICO
+                png_path = Path(__file__).parent / 'PageAutomationic.png'
+                if png_path.exists():
+                    from PIL import Image
+                    img = Image.open(png_path)
+                    ico_path = Path(__file__).parent / 'temp_icon.ico'
+                    img.save(ico_path, format='ICO', sizes=[(32,32)])
+                    self.root.iconbitmap(str(ico_path))
+        except Exception as e:
+            pass  # Icon not critical
         
         self.cli = PageReorderCLI()
         self.logger = create_logger()
@@ -74,8 +87,14 @@ class MFPageOrganizerApp:
         self.setup_ui()
         self.center_window()
         
-        # Apply theme AFTER UI is built to ensure proper rendering
-        self.root.after(100, self.apply_theme)  # Delay 100ms to ensure UI is fully rendered
+        # Force window update before applying theme
+        self.root.update_idletasks()
+        
+        # Apply theme after UI is fully rendered
+        self.apply_theme()
+        
+        # Force another update to ensure theme is applied
+        self.root.update()
     
     def center_window(self):
         """Center the window on screen"""
@@ -645,7 +664,12 @@ class MFPageOrganizerApp:
         
         # Configure ttk style
         style = ttk.Style()
-        style.theme_use('clam')  # Use clam for better customization
+        
+        # IMPORTANT: Use the SAME base theme for both light and dark to prevent size changes
+        try:
+            style.theme_use('clam')  # Use clam for both themes
+        except:
+            style.theme_use('default')
         
         if is_dark:
             # Dark theme colors
@@ -655,17 +679,29 @@ class MFPageOrganizerApp:
             entry_fg = "#ffffff"
             button_bg = "#404040"
             frame_bg = "#333333"
+            select_bg = "#0078d7"
+            select_fg = "#ffffff"
             
-            # Apply dark theme to all ttk widgets
+            # Apply dark theme to all ttk widgets with proper styling
+            style.configure('.', background=bg_color, foreground=fg_color, 
+                          fieldbackground=entry_bg, selectbackground=select_bg,
+                          selectforeground=select_fg)
             style.configure('TFrame', background=bg_color)
             style.configure('TLabel', background=bg_color, foreground=fg_color)
-            style.configure('TLabelframe', background=bg_color, foreground=fg_color)
+            style.configure('TLabelframe', background=bg_color, foreground=fg_color, 
+                          bordercolor=frame_bg, lightcolor=frame_bg, darkcolor=frame_bg)
             style.configure('TLabelframe.Label', background=bg_color, foreground=fg_color)
-            style.configure('TButton', background=button_bg, foreground=fg_color)
-            style.configure('TEntry', fieldbackground=entry_bg, foreground=entry_fg)
-            style.configure('TCombobox', fieldbackground=entry_bg, foreground=entry_fg)
+            style.configure('TButton', background=button_bg, foreground=fg_color,
+                          bordercolor=button_bg, lightcolor=button_bg, darkcolor=button_bg)
+            style.map('TButton', background=[('active', '#505050')])
+            style.configure('TEntry', fieldbackground=entry_bg, foreground=entry_fg,
+                          bordercolor=entry_bg, lightcolor=entry_bg, darkcolor=entry_bg)
+            style.configure('TCombobox', fieldbackground=entry_bg, foreground=entry_fg,
+                          bordercolor=entry_bg, selectbackground=select_bg, selectforeground=select_fg)
             style.configure('TCheckbutton', background=bg_color, foreground=fg_color)
-            style.configure('TProgressbar', background='#4CAF50', troughcolor=frame_bg)
+            style.map('TCheckbutton', background=[('active', bg_color)])
+            style.configure('TProgressbar', background='#4CAF50', troughcolor=frame_bg,
+                          bordercolor=frame_bg, lightcolor=frame_bg, darkcolor=frame_bg)
         else:
             # Light theme colors
             bg_color = "#f0f0f0"
@@ -674,13 +710,19 @@ class MFPageOrganizerApp:
             entry_fg = "#000000"
             button_bg = "#e0e0e0"
             frame_bg = "#ffffff"
+            select_bg = "#0078d7"
+            select_fg = "#ffffff"
             
             # Apply light theme to all ttk widgets
+            style.configure('.', background=bg_color, foreground=fg_color,
+                          fieldbackground=entry_bg, selectbackground=select_bg,
+                          selectforeground=select_fg)
             style.configure('TFrame', background=bg_color)
             style.configure('TLabel', background=bg_color, foreground=fg_color)
             style.configure('TLabelframe', background=bg_color, foreground=fg_color)
             style.configure('TLabelframe.Label', background=bg_color, foreground=fg_color)
             style.configure('TButton', background=button_bg, foreground=fg_color)
+            style.map('TButton', background=[('active', '#d0d0d0')])
             style.configure('TEntry', fieldbackground=entry_bg, foreground=entry_fg)
             style.configure('TCombobox', fieldbackground=entry_bg, foreground=entry_fg)
             style.configure('TCheckbutton', background=bg_color, foreground=fg_color)
@@ -692,15 +734,28 @@ class MFPageOrganizerApp:
         # Apply colors to Text widget (log area) if it exists
         if hasattr(self, 'log_text'):
             self.log_text.configure(bg=entry_bg, fg=entry_fg, insertbackground=entry_fg)
+        
+        # Force update
+        self.root.update_idletasks()
     
     def toggle_theme(self):
         """Toggle between system/light/dark themes"""
+        # Save current geometry and update state
+        current_geometry = self.root.geometry()
+        self.root.update_idletasks()
+        
         themes = ["system", "light", "dark"]
         current_index = themes.index(self.current_theme)
         self.current_theme = themes[(current_index + 1) % 3]
         
         self.detect_system_theme()
         self.apply_theme()
+        
+        # Force update and restore geometry multiple times to ensure it sticks
+        self.root.update_idletasks()
+        self.root.geometry(current_geometry)
+        self.root.update()
+        self.root.geometry(current_geometry)
         
         # Update window title to show current theme
         theme_names = {"system": "System", "light": "Light", "dark": "Dark"}
@@ -816,13 +871,7 @@ def main():
     """Main function"""
     root = tk.Tk()
     
-    # Configure ttk styles
-    style = ttk.Style()
-    try:
-        style.theme_use('clam')
-    except:
-        pass
-    
+    # Don't configure theme here - let the app handle it
     app = MFPageOrganizerApp(root)
     
     # Handle window closing
@@ -837,8 +886,49 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
-    # Show splash screen if available
-    if show_splash_with_loading:
-        show_splash_with_loading(main)
-    else:
+    # Simple and reliable startup - works in both script and EXE mode
+    try:
+        # Try to show splash screen if available
+        if show_splash_with_loading and not getattr(sys, 'frozen', False):
+            # Only use splash in script mode (not in EXE)
+            from splash_screen import SplashScreen
+            import threading
+            import time
+            
+            root = tk.Tk()
+            root.withdraw()
+            
+            splash = SplashScreen(root)
+            
+            def load_and_show():
+                time.sleep(0.8)
+                splash.update_status("Loading OCR engine...")
+                time.sleep(0.8)
+                splash.update_status("Initializing AI models...")
+                time.sleep(0.8)
+                splash.update_status("Preparing interface...")
+                time.sleep(0.8)
+                splash.update_status("Almost ready...")
+                time.sleep(0.6)
+                splash.close()
+                
+                root.after(100, lambda: [
+                    root.deiconify(),
+                    MFPageOrganizerApp(root)
+                ])
+            
+            thread = threading.Thread(target=load_and_show, daemon=True)
+            thread.start()
+            
+            def on_closing():
+                root.destroy()
+            
+            root.protocol("WM_DELETE_WINDOW", on_closing)
+            root.mainloop()
+        else:
+            # In EXE mode or if splash not available, just run main()
+            main()
+    except Exception as e:
+        # Fallback to simple main() if anything fails
+        print(f"Startup error: {e}")
         main()

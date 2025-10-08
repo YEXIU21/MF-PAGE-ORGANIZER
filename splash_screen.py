@@ -11,8 +11,16 @@ import time
 class SplashScreen:
     """Display splash screen during application startup"""
     
-    def __init__(self):
-        self.root = tk.Tk()
+    def __init__(self, parent=None):
+        if parent is None:
+            # Create root if no parent provided
+            self.root = tk.Tk()
+            self.is_root = True
+        else:
+            # Use Toplevel if parent provided
+            self.root = tk.Toplevel(parent)
+            self.is_root = False
+        
         self.root.overrideredirect(True)  # Remove window decorations
         
         # Get screen dimensions
@@ -113,8 +121,13 @@ class SplashScreen:
     
     def close(self):
         """Close splash screen"""
-        self.progress.stop()
-        self.root.destroy()
+        try:
+            self.progress.stop()
+            if self.is_root:
+                self.root.quit()  # Exit mainloop if this is root
+            self.root.destroy()  # Destroy window
+        except:
+            pass
     
     def show(self):
         """Show splash screen"""
@@ -133,23 +146,19 @@ def show_splash_with_loading(callback, *args, **kwargs):
     def load_app():
         """Load application in background"""
         try:
-            # Simulate loading steps
-            time.sleep(0.5)
+            # Show loading steps with proper timing (visible for users)
+            time.sleep(0.8)
             splash.update_status("Loading OCR engine...")
-            time.sleep(0.5)
+            time.sleep(0.8)
             splash.update_status("Initializing AI models...")
-            time.sleep(0.5)
+            time.sleep(0.8)
             splash.update_status("Preparing interface...")
-            time.sleep(0.5)
+            time.sleep(0.8)
             splash.update_status("Almost ready...")
-            time.sleep(0.3)
+            time.sleep(0.6)
             
-            # Close splash
+            # Close splash - this will exit the mainloop
             splash.close()
-            
-            # Launch main application
-            if callback:
-                callback(*args, **kwargs)
                 
         except Exception as e:
             splash.close()
@@ -161,6 +170,10 @@ def show_splash_with_loading(callback, *args, **kwargs):
     
     # Show splash screen (blocks until closed)
     splash.root.mainloop()
+    
+    # After splash closes and mainloop exits, launch main application
+    if callback:
+        callback(*args, **kwargs)
 
 if __name__ == '__main__':
     # Test splash screen
