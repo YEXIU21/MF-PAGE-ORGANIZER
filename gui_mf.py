@@ -226,6 +226,15 @@ class MFPageOrganizerApp:
                                    state="readonly", width=18)
         blank_combo.pack(side=tk.LEFT, padx=(10, 0))
         
+        # Blank page orientation fix
+        blank_orient_frame = ttk.Frame(right_column)
+        blank_orient_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        ttk.Label(blank_orient_frame, text="Blank page orientation:").pack(side=tk.LEFT)
+        self.blank_portrait_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(blank_orient_frame, text="Rotate landscape blanks to portrait", 
+                       variable=self.blank_portrait_var).pack(side=tk.LEFT, padx=(10, 0))
+        
         # PDF compression
         compress_frame = ttk.Frame(right_column)
         compress_frame.pack(fill=tk.X, pady=(0, 10))
@@ -374,6 +383,7 @@ class MFPageOrganizerApp:
         self.fast_mode_var.set(False)        # Fast mode: OFF (better accuracy)
         self.accuracy_var.set("Standard")    # Accuracy: Standard (balanced)
         self.blank_page_var.set("Start & End")  # Blank pages: Remove start & end
+        self.blank_portrait_var.set(True)    # Blank portrait: ON (rotate landscape blanks)
         self.compress_var.set(False)         # PDF compression: OFF (better quality)
         self.output_format_var.set("TIF (300 DPI)")  # Format: TIF with 300 DPI
         self.include_pdf_var.set(True)       # Include PDF: ON
@@ -384,6 +394,7 @@ class MFPageOrganizerApp:
                           "• Auto-crop: ON\n"
                           "• Clean dark circles: ON\n"
                           "• Remove blank pages: Start & End\n"
+                          "• Blank pages → Portrait: ON\n"
                           "• Output format: TIF (300 DPI)\n"
                           "• Include PDF: YES\n"
                           "• Accuracy: Standard\n\n"
@@ -493,6 +504,9 @@ class MFPageOrganizerApp:
             }
             blank_mode = blank_mode_map.get(self.blank_page_var.get(), "start_end")
             config.set('processing.blank_page_mode', blank_mode)
+            
+            # Set blank page portrait rotation
+            config.set('processing.rotate_blank_to_portrait', self.blank_portrait_var.get())
             
             # Set PDF compression
             config.set('output.compress_pdf', self.compress_var.get())

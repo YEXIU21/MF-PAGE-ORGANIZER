@@ -153,7 +153,17 @@ class PageReorderCLI:
                     if num_removed > 0:
                         self.logger.info(f"Removed {num_removed} blank pages")
                         self.logger.info(f"Remaining pages: {len(pages)}")
-                self.logger.info(f"✅ Stage 3 Complete: Blank page removal done")
+                
+                # STAGE 3B: BLANK PAGE ORIENTATION FIX (Portrait)
+                # Rotate blank landscape pages to portrait (default orientation)
+                rotate_blank_portrait = config.get('processing.rotate_blank_to_portrait', True)
+                if rotate_blank_portrait:
+                    self.logger.info(f"🔄 Checking blank page orientation...")
+                    pages, num_rotated = self.blank_page_detector.rotate_blank_landscape_to_portrait(pages)
+                    if num_rotated > 0:
+                        self.logger.info(f"📄 Rotated {num_rotated} blank landscape pages to portrait")
+                
+                self.logger.info(f"✅ Stage 3 Complete: Blank page processing done")
                 
                 # ═══════════════════════════════════════════════════════════
                 # STAGE 4: PREPROCESSING

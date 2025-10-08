@@ -18,6 +18,8 @@ class BlankPageAnalysis:
     white_percentage: float
     edge_density: float
     text_detected: bool
+    is_landscape: bool = False
+    needs_rotation: bool = False
 
 class BlankPageDetector:
     """Detects blank pages in scanned documents"""
@@ -53,6 +55,13 @@ class BlankPageDetector:
                 not text_detected
             )
             
+            # Check orientation
+            width, height = image.size
+            is_landscape = width > height
+            
+            # Blank landscape pages should be rotated to portrait
+            needs_rotation = is_blank and is_landscape
+            
             # Calculate confidence
             confidence = white_percentage if is_blank else (1 - white_percentage)
             
@@ -62,7 +71,9 @@ class BlankPageDetector:
                 confidence=confidence,
                 white_percentage=white_percentage,
                 edge_density=edge_density,
-                text_detected=text_detected
+                text_detected=text_detected,
+                is_landscape=is_landscape,
+                needs_rotation=needs_rotation
             )
             
         except Exception as e:
@@ -195,3 +206,39 @@ class BlankPageDetector:
         ]
         
         return filtered_pages, len(blank_indices)
+    
+    def rotate_blank_landscape_to_portrait(self, pages: List) -> Tuple[List, int]:
+        """
+        Rotate blank landscape pages to portrait orientation
+        
+        Args:
+            pages: List of PageInfo objects
+        
+        Returns:
+            (updated_pages, num_rotated)
+        """
+        num_rotated = 0
+        
+        for i, page in enumerate(pages):
+            if not page.image:
+                continue
+            
+            # Analyze page
+            analysis = self.analyze_page(page.image)
+            
+            # If blank and landscape, rotate to portrait
+            if analysis.needs_rotation:
+                # Rotate 90 degrees clockwise to make portrait
+                page.image = page.image.rotate(-90, expand=True)
+                num_rotated += 1
+                
+                if self.logger:
+                    self.logger.info(
+                        f"📄 Page {i+1} ({page.original_name}): "
+                        f"Blank landscape page rotated to portrait"
+                    )
+        
+        if self.logger and num_rotated > 0:
+            self.logger.info(f"✅ Rotated {num_rotated} blank landscape pages to portrait")
+        
+        return pages, num_rotated

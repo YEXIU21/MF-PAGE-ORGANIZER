@@ -39,6 +39,7 @@
     },
     "processing": {
         "blank_page_mode": "start_end",
+        "rotate_blank_to_portrait": true,
         "fast_mode": false
     },
     "output": {
