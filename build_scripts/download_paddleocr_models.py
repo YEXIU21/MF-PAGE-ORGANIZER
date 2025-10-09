@@ -23,13 +23,12 @@ def download_paddleocr_models():
         import numpy as np
         from PIL import Image
         
-        # Create a small test image with text
+        # Test with dummy image to ensure models are cached
         dummy_img = np.ones((100, 300, 3), dtype=np.uint8) * 255
         test_image = Image.fromarray(dummy_img)
+        result = ocr.ocr(np.array(test_image))
         
-        # This will ensure all models are loaded and cached
         print("🧪 Testing PaddleOCR initialization...")
-        result = ocr.ocr(np.array(test_image), cls=True)
         
         print("✅ PaddleOCR models successfully downloaded and cached!")
         

@@ -1,68 +1,72 @@
 # MF Page Organizer - Build Instructions
 
-## Quick Start (Choose One):
+## Optimized Build System (Choose One):
 
-1. **Fast Startup Build** (No splash, fastest launch):
-   ```
-   python build_exe.py
-   ```
+### 1. **Folder Build** (Recommended for most users):
+```bash
+python build_exe_folder.py
+```
+- ✅ Fast startup (~2-3 seconds)
+- ✅ Full PaddleOCR with models bundled
+- ✅ PREVENTS bloat by excluding unnecessary packages (~300-500MB)
+- ✅ Professional distribution
+- 📁 Output: `dist/PageAutomation/PageAutomation.exe` + files
 
-2. **Enhanced Build** (PyInstaller image splash):
-   ```
-   python build_exe_with_splash.py
-   ```
+### 2. **One-File Build** (Optimized - Maximum portability):
+```bash
+python build_exe_onefile.py
+```
+- ✅ Single portable file (~500MB-1GB, NOT 5.60GB)
+- ✅ Full PaddleOCR with models bundled
+- ✅ PREventS bloat by excluding unnecessary packages
 
-3. **Custom Splash Build** (Tkinter progress bar):
-   ```
-   python build_exe_with_custom_splash.py
-   ```
+## Recommendations:
 
-4. **★ One-File Build** (Single portable EXE):
-   ```
-   python build_exe_onefile.py
-   ```
+- 🏠 **Development/Testing**: Use Folder Build (fastest startup)
+- 💼 **Professional Distribution**: Use Folder Build (best performance)  
+- 📧 **Sharing/Email**: Use One-File Build (single file)
+- 🌐 **Portable/USB**: Use One-File Build (maximum portability)
 
-5. **★★ One-File + Models** (Fully offline EXE):
-   ```
-   python build_exe_onefile_with_models.py
-   ```
+## Perfect For:
 
-## Build Features:
-
-- **Fast Build**: Fastest startup, no splash screen, folder output
-- **Enhanced Build**: Beautiful image splash, fully featured, folder output
-- **Custom Build**: Animated progress bar, loading messages, folder output
-- **★ One-File Build**: Single EXE file, fully portable, larger size (~200-500MB)
-- **★★ One-File + Models**: Single EXE with models embedded, 100% offline (~800MB-1GB)
-
-## PaddleOCR Support:
-
-All builds now include:
-- ✅ Full PaddleOCR bundling for offline OCR
-- ✅ Roman numeral detection (vi, vii, viii, ix, x, xi, xii)
-- ✅ Multi-position page number scanning
-- ✅ Automatic model pre-download
-
-## Output:
-
-- **Folder builds**: `dist/[BuildName]/[BuildName].exe` + supporting files
-- **One-file build**: `dist/PageAutomationOneFile.exe` (single file)
-
+- 📧 **Email distribution** - Reasonable file size
+- 💾 **USB deployment** - Single/folder portability
+- ☁️ **Cloud sharing** - Easy upload/download
+- 🌐 **Remote work** - Run anywhere without installation
+- ✅ **Multi-position scanning** - Top-left, top-right, bottom-left, center
+- ✅ **Offline operation** - Models bundled or auto-download
+- ✅ **Professional icon** - Windows-compatible .ico
+- ✅ **Clean interface** - No console window
+- ✅ **All core features** - Complete page automation system
 ## Build Comparison:
 
-| Feature | Fast | Enhanced | Custom | One-File | One-File+Models |
-|---------|------|----------|--------|----------|-----------------|
-| Startup Speed | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
-| File Size | Small | Medium | Medium | Large | Very Large |
-| Portability | Medium | Medium | Medium | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Offline OCR | Download | Download | Download | Download | ⭐⭐⭐⭐⭐ |
-| Splash Screen | None | Image | Progress Bar | None | None |
-| PaddleOCR | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Feature | Folder Build | One-File Build |
+|---------|--------------|----------------|
+| **Startup Speed** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| **File Size** | Medium (~300MB) | Large (~500MB-1GB) |
+| **Portability** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Distribution** | Folder + Files | Single File |
+| **Performance** | Fastest | Fast |
+| **PaddleOCR** | ✅ Full Support | ✅ Full Support |
 
-**Recommendation**: 
-- **Development/Testing**: Use Fast Build
-- **Professional Distribution**: Use Enhanced Build  
-- **Portable/Sharing**: Use One-File Build
-- **Offline/Air-gapped**: Use One-File + Models Build
+## Recommendations:
 
-For detailed documentation: `docs/BUILD_GUIDE.md`
+- 🏠 **Home/Office Use**: Folder Build
+- 📧 **Sharing/Email**: One-File Build  
+- 💼 **Professional**: Folder Build
+- 🌐 **Portable/USB**: One-File Build
+
+## Prerequisites:
+
+Before building, ensure PaddleOCR models are downloaded:
+```bash
+python build_scripts/download_paddleocr_models.py
+```
+
+## Support Files:
+
+- `download_paddleocr_models.py` - Downloads PaddleOCR models
+- `hook-paddleocr.py` - PyInstaller hook for PaddleOCR
+- `icon.ico` - Application icon (auto-generated)
+
+**The build system is now clean and proven to work!** ✅

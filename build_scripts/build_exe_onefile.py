@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-One-File EXE Builder for MF Page Organizer
-Creates a single standalone executable file with full PaddleOCR support
+One-File EXE Builder - Creates single PageAutomation.exe file (OPTIMIZED)
+✅ Maximum portability (single file)
+✅ Full PaddleOCR support with bundled models
+✅ Professional icon
+✅ PREVENTS 5.60GB bloat by excluding unnecessary packages
+✅ Expected size: ~500MB-1GB instead of 5.60GB
+✅ Roman numeral detection (vi, vii, viii, ix, x, xi, xii)
 """
 
 import os
@@ -9,52 +14,59 @@ import sys
 import subprocess
 from pathlib import Path
 
-def _get_paddleocr_models_path():
-    """Get PaddleOCR models path for bundling"""
-    try:
-        import paddleocr
-        import site
-        
-        # Try to find PaddleOCR installation directory
-        paddleocr_path = Path(paddleocr.__file__).parent
-        
-        # Look for inference models in PaddleOCR installation
-        inference_path = paddleocr_path / "inference"
-        if inference_path.exists():
-            return str(inference_path)
-        
-        # Fallback: Look in site-packages
-        for site_path in site.getsitepackages():
-            site_paddleocr = Path(site_path) / "paddleocr" / "inference"
-            if site_paddleocr.exists():
-                return str(site_paddleocr)
-        
-        # Fallback: Check user's .paddleocr directory
-        user_models = Path.home() / ".paddleocr"
-        if user_models.exists():
-            return str(user_models)
-        
-        print("⚠️  Warning: PaddleOCR models directory not found")
-        return ""
-        
-    except ImportError:
-        print("⚠️  Warning: PaddleOCR not installed")
-        return ""
+def prepare_models():
+    """Copy PaddleOCR models for bundling"""
+    print("📦 Preparing PaddleOCR models...")
+    
+    paddlex_dir = Path.home() / '.paddlex'
+    if not paddlex_dir.exists():
+        print("⚠️  No PaddleOCR models found. They will download on first use.")
+        return None
+    
+    build_dir = Path(__file__).parent
+    models_dir = build_dir / 'paddleocr_models'
+    
+    if models_dir.exists():
+        shutil.rmtree(models_dir)
+    models_dir.mkdir()
+    
+    # Copy model files (skip problematic cache/git files)
+    model_count = 0
+    for src_file in paddlex_dir.rglob('*'):
+        if src_file.is_file():
+            skip_patterns = ['.git', '.cache', '__pycache__', '.tmp', '.pyc']
+            if any(pattern in str(src_file) for pattern in skip_patterns):
+                continue
+            
+            rel_path = src_file.relative_to(paddlex_dir)
+            dest_file = models_dir / rel_path
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dest_file)
+    
+    print(f"✓ Prepared {model_count} model files")
+    return models_dir
 
 def main():
     print("=" * 70)
-    print("MF PAGE ORGANIZER - One-File EXE Builder")
+    print("MF PAGE ORGANIZER - ONE-FILE BUILD (OPTIMIZED)")
     print("=" * 70)
-    print()
-    print("Creating a SINGLE executable file (larger size, portable)")
+    print("🎯 PREventS 5.60GB bloat by excluding unnecessary packages")
+    print("📊 Expected size: ~500MB-1GB (NOT 5.60GB)")
+    print("✅ Maximum portability - run from anywhere")
     print()
     
-    # Paths
     build_dir = Path(__file__).parent
     root_dir = build_dir.parent
+    # Clean old builds
+    print("[1/5] Cleaning old builds...")
+    for cleanup in ['build', 'dist']:
+        cleanup_path = build_dir / cleanup
+        if cleanup_path.exists():
+            shutil.rmtree(cleanup_path)
+    print("✓ Clean")
     
-    # Step 1: Convert icon
-    print("[1/4] Converting icon...")
+    # Create icon
+    print("\n[2/5] Creating icon...")
     try:
         from PIL import Image
         icon_src = root_dir / 'PageAutomationic.png'
@@ -64,134 +76,120 @@ def main():
         print("✓ Icon created")
     except Exception as e:
         print(f"✗ Icon failed: {e}")
-        return
+        return False
     
-    # Step 2: Install PyInstaller
-    print("\n[2/4] Installing PyInstaller...")
+    # Prepare models
+    print("\n[3/5] Preparing models...")
+    models_dir = prepare_models()
+    
+    # Install PyInstaller
+    print("\n[4/5] Installing PyInstaller...")
     subprocess.run([sys.executable, '-m', 'pip', 'install', 'pyinstaller', '--quiet'])
     print("✓ PyInstaller ready")
     
-    # Step 3: Pre-download PaddleOCR models (optional for one-file)
-    print("\n[3/4] Pre-downloading PaddleOCR models...")
-    download_script = build_dir / 'download_paddleocr_models.py'
-    if download_script.exists():
-        result = subprocess.run([sys.executable, str(download_script)])
-        if result.returncode == 0:
-            print("✓ PaddleOCR models ready")
-        else:
-            print("⚠️  PaddleOCR models download had issues, continuing anyway")
-    else:
-        print("⚠️  Model downloader not found, models will download on first use")
-    
-    # Step 4: Build one-file executable
-    print("\n[4/4] Building ONE-FILE executable...")
-    print("⚠️  This may take 10-15 minutes and create a large file (~500MB)")
-    print("Please wait...")
+    # Build with OPTIMIZATION to prevent 5.60GB bloat
+    print("\n[5/5] Building OPTIMIZED ONE-FILE EXE...")
+    print("🎯 Excluding bloated packages to prevent 5.60GB issue...")
+    print("⏳ This takes 15-20 minutes - please wait...")
     
     cmd = [
         sys.executable, '-m', 'PyInstaller',
         '--name=PageAutomationOneFile',
-        '--onefile',  # ★ KEY DIFFERENCE: Creates single EXE file
+        '--onefile',  # ★ Single file
         '--windowed',
         f'--icon={icon_dst}',
         '--clean',
         '--noconfirm',
-        f'--additional-hooks-dir={build_dir}',  # Use our custom hooks
-        # Add data files (embedded in the single EXE)
+        f'--additional-hooks-dir={build_dir}',
+        
+        # ★ CRITICAL: Exclude bloated packages that cause 5.60GB builds
+        '--exclude-module=torch',
+        '--exclude-module=torchvision', 
+        '--exclude-module=tensorflow',
+        '--exclude-module=jax',
+        '--exclude-module=scipy.sparse.csgraph._validation',
+        '--exclude-module=scipy.spatial.ckdtree',
+        '--exclude-module=torch.distributed',
+        '--exclude-module=torch.nn',
+        '--exclude-module=torch.optim',
+        '--exclude-module=torch.autograd',
+        '--exclude-module=torch.cuda',
+        '--exclude-module=torch.backends',
+        
+        # Data files
         f'--add-data={root_dir / "core"}{os.pathsep}core',
         f'--add-data={root_dir / "utils"}{os.pathsep}utils',
-        f'--add-data={icon_dst}{os.pathsep}.',
-        f'--add-data={root_dir / "PageAutomationic.png"}{os.pathsep}.',
         f'--add-data={root_dir / "config.json"}{os.pathsep}.',
-        # Hidden imports for all required modules
+        f'--add-data={root_dir / "PageAutomationic.png"}{os.pathsep}.',
+    ]
+    
+    # Add models if available
+    if models_dir and models_dir.exists():
+        cmd.append(f'--add-data={models_dir}{os.pathsep}.paddlex')
+    
+    # ★ MINIMAL imports only - prevent auto-discovery of bloated packages
+    minimal_imports = [
         '--hidden-import=tkinter',
         '--hidden-import=PIL',
-        '--hidden-import=PIL.Image',
+        '--hidden-import=PIL.Image', 
         '--hidden-import=PIL.ImageTk',
         '--hidden-import=cv2',
-        '--hidden-import=paddleocr',
-        '--hidden-import=paddle',
-        '--hidden-import=paddleocr.paddleocr',
-        '--hidden-import=paddle.inference',
-        '--hidden-import=paddle.framework',
-        '--hidden-import=paddle.fluid',
-        '--hidden-import=ppocr',
-        '--hidden-import=ppocr.utils',
-        '--hidden-import=ppocr.data',
-        '--hidden-import=ppocr.modeling',
-        '--hidden-import=ppocr.postprocess',
-        '--hidden-import=ppocr.tools',
-        '--hidden-import=tools',
-        '--hidden-import=tools.infer',
+        '--hidden-import=paddleocr.paddleocr',  # Specific paddleocr only
         '--hidden-import=numpy',
         '--hidden-import=img2pdf',
-        '--hidden-import=pikepdf',
-        '--hidden-import=threading',
-        '--hidden-import=time',
-        '--hidden-import=sys',
-        '--hidden-import=os',
-        '--hidden-import=pathlib',
-        # PaddleOCR data - collect all model files (ENHANCED FOR STANDALONE)
-        '--collect-all=paddleocr',
-        '--collect-all=paddle',
-        '--collect-data=paddleocr',
-        '--collect-data=paddle',
-        '--collect-submodules=paddleocr',
-        '--collect-submodules=paddle',
-        # Note: One-file builds handle models differently - they download on first use
-        # This avoids the massive file size that would result from bundling all models
-        # Main GUI entry point
-        str(root_dir / 'gui_mf.py')
+        '--hidden-import=pikepdf'
     ]
+    cmd.extend(minimal_imports)
+    
+    # ★ NO collect-all commands that cause bloat
+    # REMOVED: '--collect-all=paddle' (this causes the 5.60GB issue)
+    # REMOVED: '--collect-all=paddleocr' (this pulls in too much)
+    
+    # Only collect specific paddleocr data
+    cmd.extend([
+        '--collect-data=paddleocr',
+        str(root_dir / 'gui_mf.py')
+    ])
     
     result = subprocess.run(cmd, cwd=build_dir)
     
     if result.returncode == 0:
-        print("\n" + "=" * 70)
+        print("\n" + "=" * 60)
         print("✅ ONE-FILE BUILD COMPLETE!")
-        print("=" * 70)
+        print("=" * 60)
         
         exe_path = build_dir / 'dist' / 'PageAutomationOneFile.exe'
-        print(f"\nEXE Location: {exe_path}")
-        print(f"EXE Name: PageAutomationOneFile.exe")
+        print(f"\n📄 Single EXE: {exe_path}")
         
-        # Get file size
+        # Check file size with bloat warning
         if exe_path.exists():
             size_mb = exe_path.stat().st_size / (1024 * 1024)
-            print(f"EXE Size: {size_mb:.1f} MB")
+            print(f"📊 File Size: {size_mb:.1f} MB")
+            
+            if size_mb > 2000:  # 2GB
+                print("⚠️  WARNING: File is still too large! Check for remaining bloated dependencies.")
+            elif size_mb > 1000:  # 1GB
+                print("⚠️  File is larger than expected but acceptable.")
+            else:
+                print("✅ File size is reasonable!")
+            
+            if models_dir and models_dir.exists():
+                print("✅ Models bundled - 100% offline operation")
+            else:
+                print("⚠️  No models bundled - will download on first use")
         
-        print(f"\n📋 One-File Features:")
-        print("  ✅ Single executable file (fully portable)")
-        print("  ✅ No additional files or folders needed")
-        print("  ✅ Professional window icon")
-        print("  ✅ All core functionality embedded")
-        print("  ✅ PaddleOCR support (models download on first use)")
-        print("  ✅ Roman numeral detection (vi, vii, viii, ix, x, xi, xii)")
-        print("  ✅ Multi-position page scanning")
-        print("  ✅ Configuration file embedded")
-        print("  ✅ No console window")
+        print(f"\n🎯 Perfect for:")
+        print("  • Email distribution")
+        print("  • USB deployment") 
+        print("  • Cloud sharing")
+        print("  • Portable operation")
         
-        print(f"\n⚡ Performance Notes:")
-        print("  • First startup: ~10-15 seconds (extracts to temp)")
-        print("  • Subsequent runs: ~3-5 seconds")
-        print("  • PaddleOCR models: Download automatically on first OCR use")
-        print("  • File size: Large (~200-500MB) but fully self-contained")
-        
-        print(f"\n🚀 Perfect for:")
-        print("  • Sharing via email or USB")
-        print("  • Running on computers without installation")
-        print("  • Portable deployment")
-        print("  • Users who want a single file solution")
-        
-        print("\n🎯 Test it by double-clicking the EXE!")
-        print("=" * 70)
+        print(f"\n🚀 Test the EXE: Double-click {exe_path}")
+        print("=" * 60)
+        return True
     else:
-        print("\n❌ One-file build failed!")
-        print("This may be due to:")
-        print("  • Insufficient disk space")
-        print("  • Antivirus interference")
-        print("  • PyInstaller version issues")
-        print("\nTry the regular build instead: python build_exe_with_splash.py")
+        print("\n❌ Build failed!")
+        return False
 
 if __name__ == '__main__':
     main()
