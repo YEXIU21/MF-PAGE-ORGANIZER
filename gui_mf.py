@@ -39,6 +39,24 @@ class MFPageOrganizerApp:
         self.root = root
         self.root.title("MF Page Organizer - Smart Document Organizer")
         
+        # Close PyInstaller splash screen after 4 seconds (maximum display time)
+        try:
+            import pyi_splash
+            import threading
+            
+            def close_splash_after_timeout():
+                import time
+                time.sleep(4)  # Wait 4 seconds
+                try:
+                    pyi_splash.close()
+                except:
+                    pass  # Already closed
+            
+            # Start timeout thread
+            threading.Thread(target=close_splash_after_timeout, daemon=True).start()
+        except:
+            pass  # Not running as EXE with splash
+        
         # Set AppUserModelID for Windows 11 taskbar icon
         try:
             import ctypes
@@ -104,13 +122,7 @@ class MFPageOrganizerApp:
         # Force another update to ensure theme is applied
         self.root.update()
         
-        # Close PyInstaller splash screen after GUI is fully loaded
-        # This ensures smooth transition from splash to main window
-        try:
-            import pyi_splash
-            pyi_splash.close()
-        except:
-            pass  # Not running as EXE with splash or already closed
+        # Note: Splash closes automatically after 4 seconds (see __init__ start)
     
     def center_window(self):
         """Center the window on screen"""
@@ -939,7 +951,8 @@ if __name__ == "__main__":
                 splash.update_status("Preparing interface...")
                 time.sleep(0.8)
                 splash.update_status("Almost ready...")
-                time.sleep(0.6)
+                time.sleep(0.8)
+                # Total: 0.8 * 5 = 4.0 seconds ✅
                 splash.close()
                 
                 root.after(100, lambda: [

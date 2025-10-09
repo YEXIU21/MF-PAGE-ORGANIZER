@@ -146,7 +146,7 @@ def show_splash_with_loading(callback, *args, **kwargs):
     def load_app():
         """Load application in background"""
         try:
-            # Show loading steps with proper timing (visible for users)
+            # Show loading steps with proper timing (4 seconds total)
             time.sleep(0.8)
             splash.update_status("Loading OCR engine...")
             time.sleep(0.8)
@@ -155,7 +155,8 @@ def show_splash_with_loading(callback, *args, **kwargs):
             splash.update_status("Preparing interface...")
             time.sleep(0.8)
             splash.update_status("Almost ready...")
-            time.sleep(0.6)
+            time.sleep(0.8)
+            # Total: 0.8 * 5 = 4.0 seconds ✅
             
             # Close splash - this will exit the mainloop
             splash.close()
