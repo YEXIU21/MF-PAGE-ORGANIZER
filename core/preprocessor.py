@@ -14,6 +14,8 @@ import math
 
 from .input_handler import PageInfo
 from utils.config import config
+from .crop_validator import CropValidator
+from .interactive_cropper import InteractiveCropper
 
 class Preprocessor:
     """Image preprocessing with various enhancement options"""
@@ -21,6 +23,8 @@ class Preprocessor:
     def __init__(self, logger):
         self.logger = logger
         self.config = config
+        self.crop_validator = CropValidator(logger)
+        self.interactive_cropper = InteractiveCropper(logger)
     
     def process_batch(self, pages: List[PageInfo]) -> List[PageInfo]:
         """Process a batch of pages with enhanced memory management"""
@@ -89,10 +93,20 @@ class Preprocessor:
             if rotation_angle != 0:
                 processing_steps.append(f"auto_rotate({rotation_angle}°)")
         
-        # Auto crop if enabled
+        # Auto crop if enabled with validation
         if self.config.get('preprocessing.auto_crop', False):
+            original_cv_image = cv_image.copy()
             cv_image = self._auto_crop_image(cv_image)
-            processing_steps.append("auto_crop")
+            
+            # Validate crop quality
+            validation = self.crop_validator.validate_crop(
+                original_cv_image, cv_image, page.original_name
+            )
+            
+            if validation['needs_review']:
+                processing_steps.append(f"auto_crop(⚠️{validation['confidence']:.0f}%)")
+            else:
+                processing_steps.append("auto_crop")
         
         # Clean dark circles if enabled  
         if self.config.get('preprocessing.clean_dark_circles', False):
@@ -515,3 +529,75 @@ class Preprocessor:
             if self.logger:
                 self.logger.warning(f"Image optimization failed: {e}")
             return image
+    
+    def generate_crop_reports(self, output_dir):
+        """Generate crop validation reports if auto-crop was used"""
+        if self.config.get('preprocessing.auto_crop', False):
+            return self.crop_validator.generate_review_report(output_dir)
+    
+    def handle_manual_cropping(self, pages: List[PageInfo]) -> List[PageInfo]:
+        """
+        Handle interactive manual cropping for problematic pages
+        Pauses processing and shows GUI for user to manually crop
+        """
+        if not self.crop_validator.problematic_pages:
+            return pages  # No problematic pages
+        
+        # Check if interactive mode is enabled
+        if not self.config.get('preprocessing.interactive_crop', False):
+            self.logger.info("ℹ️ Interactive cropping disabled - see CROP_REVIEW_NEEDED.txt for manual review")
+            return pages
+        
+        self.logger.info(f"🔧 {len(self.crop_validator.problematic_pages)} pages need manual cropping")
+        self.logger.info("⏸️ Pausing processing for manual crop...")
+        
+        # Prepare images dict
+        images_dict = {page.original_name: page.image for page in pages if page.image}
+        
+        # Show interactive cropping interface
+        try:
+            crop_results = self.interactive_cropper.show_cropping_interface(
+                self.crop_validator.problematic_pages,
+                images_dict
+            )
+            
+            if crop_results is None:
+                # User cancelled
+                self.logger.warning("❌ Manual cropping cancelled by user")
+                return None
+            
+            if not crop_results:
+                # User skipped all
+                self.logger.info("ℹ️ All pages skipped - keeping auto-crop results")
+                return pages
+            
+            # Apply manual crops
+            self.logger.info(f"✂️ Applying manual crops to {len(crop_results)} pages")
+            cropped_pages = []
+            
+            for page in pages:
+                if page.original_name in crop_results:
+                    # Apply manual crop
+                    x1, y1, x2, y2 = crop_results[page.original_name]
+                    cropped_image = page.image.crop((x1, y1, x2, y2))
+                    
+                    # Create new page with cropped image
+                    cropped_page = PageInfo(page.file_path, page.page_number, cropped_image)
+                    cropped_page.metadata = page.metadata.copy()
+                    cropped_page.metadata['manual_crop'] = True
+                    cropped_page.processing_history = page.processing_history + ['manual_crop']
+                    cropped_pages.append(cropped_page)
+                    
+                    self.logger.debug(f"✅ {page.original_name}: Manual crop applied")
+                else:
+                    # Keep original
+                    cropped_pages.append(page)
+            
+            self.logger.info("✅ Manual cropping complete - resuming processing")
+            return cropped_pages
+            
+        except Exception as e:
+            self.logger.error(f"Manual cropping failed: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return pages  # Return original pages on error

@@ -17,6 +17,7 @@ Welcome to the MF Page Organizer documentation. This system automatically organi
 - **[PADDLEOCR_MIGRATION.md](PADDLEOCR_MIGRATION.md)** - OCR engine migration details
 - **[SYSTEM_OVERHAUL_COMPLETE.md](SYSTEM_OVERHAUL_COMPLETE.md)** - System overhaul documentation
 - **[CLEANUP_SUMMARY.md](CLEANUP_SUMMARY.md)** - Code cleanup and optimization summary
+- **[AUTO_CROP_VALIDATION.md](AUTO_CROP_VALIDATION.md)** - Auto-crop validation and manual review system
 
 ## ✨ Latest Features
 
@@ -26,6 +27,14 @@ Welcome to the MF Page Organizer documentation. This system automatically organi
 - **GUI Control**: Toggle via "Rotate landscape blanks to portrait" checkbox
 - **Default Setting**: Portrait orientation enabled by default
 - **Configuration**: `rotate_blank_to_portrait: true` in config.json
+
+### Auto-Crop Validation System ✅
+- **Automatic Quality Checks**: Validates each auto-cropped page for issues
+- **Issue Detection**: Detects excessive cropping, black borders, content cut-offs
+- **Confidence Scoring**: 0-100% score for each crop operation
+- **Manual Review Reports**: Generates `CROP_REVIEW_NEEDED.txt` for problematic pages
+- **Handles Edge Cases**: Cut-off scans, scanner bed edges, black borders
+- **No Manual Flagging Needed**: Fully automated detection and reporting
 
 ### Enhanced Build System ✅  
 - **Fast Startup Build**: Quick startup without splash screen

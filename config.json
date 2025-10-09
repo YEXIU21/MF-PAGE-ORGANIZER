@@ -13,6 +13,7 @@
         "watermark_reduction": false,
         "auto_rotate": true,
         "auto_crop": true,
+        "interactive_crop": false,
         "clean_dark_circles": true,
         "image_optimization": true
     },

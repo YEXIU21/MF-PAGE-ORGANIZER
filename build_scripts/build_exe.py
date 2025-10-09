@@ -57,6 +57,7 @@ def main():
         f'--add-data={root_dir / "config.json"}{os.pathsep}.',  # Add config file
         '--hidden-import=tkinter',
         '--hidden-import=PIL',
+        '--hidden-import=PIL.ImageTk',
         '--hidden-import=cv2',
         '--hidden-import=paddleocr',
         '--hidden-import=paddle',

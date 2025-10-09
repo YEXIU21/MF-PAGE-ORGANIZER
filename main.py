@@ -176,6 +176,21 @@ class PageReorderCLI:
                         
                     self.logger.step("STAGE 4: Preprocessing images")
                     pages = self.preprocessor.process_batch(pages)
+                
+                # Generate crop validation report if auto-crop was used
+                if config.get('preprocessing.auto_crop', False):
+                    crop_report = self.preprocessor.generate_crop_reports(Path(output_path))
+                    if crop_report:
+                        self.logger.info(f"📋 Crop review report: {crop_report}")
+                    
+                    # Handle interactive manual cropping if enabled
+                    if config.get('preprocessing.interactive_crop', False):
+                        pages = self.preprocessor.handle_manual_cropping(pages)
+                        if pages is None:
+                            # User cancelled during manual cropping
+                            self.logger.info("Processing cancelled during manual cropping")
+                            return False
+                
                 self.logger.info(f"✅ Stage 4 Complete: Preprocessing done")
                 
                 # ═══════════════════════════════════════════════════════════
