@@ -115,6 +115,9 @@ class MFPageOrganizerApp:
         self.setup_ui()
         self.center_window()
         
+        # Run startup diagnostics and display in log
+        self.root.after(100, self._run_startup_diagnostics)
+        
         # Force window update before applying theme
         self.root.update_idletasks()
         
@@ -892,6 +895,96 @@ All rights reserved.
         """
         
         messagebox.showinfo("About - MF Page Organizer", about_text)
+    
+    def _run_startup_diagnostics(self):
+        """Run startup diagnostics and display in log"""
+        import os
+        from pathlib import Path
+        
+        self.logger.info("=" * 70)
+        self.logger.info("🔍 STARTUP DIAGNOSTICS")
+        self.logger.info("=" * 70)
+        
+        # Check 1: Python version
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        self.logger.info(f"✓ Python Version: {python_version}")
+        
+        # Check 2: Running mode
+        is_frozen = getattr(sys, 'frozen', False)
+        if is_frozen:
+            self.logger.info(f"✓ Running Mode: EXE (Standalone)")
+            base_path = sys._MEIPASS
+            self.logger.info(f"  Base Path: {base_path}")
+        else:
+            self.logger.info(f"✓ Running Mode: Script")
+        
+        # Check 3: PaddleX models
+        if is_frozen:
+            paddlex_path = os.path.join(sys._MEIPASS, '.paddlex')
+            if os.path.exists(paddlex_path):
+                try:
+                    model_count = len([f for f in Path(paddlex_path).rglob('*') if f.is_file()])
+                    self.logger.info(f"✓ PaddleX Models: Found ({model_count} files)")
+                    self.logger.info(f"  Location: {paddlex_path}")
+                    
+                    models_dir = Path(paddlex_path) / 'official_models'
+                    if models_dir.exists():
+                        models = [d.name for d in models_dir.iterdir() if d.is_dir()]
+                        self.logger.info(f"  Models: {', '.join(models[:3])}...")
+                except Exception as e:
+                    self.logger.warning(f"⚠ Could not enumerate models: {e}")
+            else:
+                self.logger.error(f"❌ PaddleX Models: NOT FOUND")
+                self.logger.error(f"  Expected: {paddlex_path}")
+                self.logger.error(f"  ⚠ PaddleOCR will fail! Rebuild EXE with models.")
+        else:
+            paddlex_path = Path.home() / '.paddlex'
+            if paddlex_path.exists():
+                model_count = len([f for f in paddlex_path.rglob('*') if f.is_file()])
+                self.logger.info(f"✓ PaddleX Models: Found ({model_count} files)")
+            else:
+                self.logger.warning(f"⚠ PaddleX Models: Not downloaded")
+                self.logger.warning(f"  Will download on first OCR use")
+        
+        # Check 4: Dependencies
+        deps_ok = True
+        try:
+            import paddleocr
+            self.logger.info(f"✓ PaddleOCR: Installed")
+        except ImportError:
+            self.logger.error(f"❌ PaddleOCR: NOT INSTALLED")
+            deps_ok = False
+        
+        try:
+            import cv2
+            self.logger.info(f"✓ OpenCV: Installed")
+        except ImportError:
+            self.logger.error(f"❌ OpenCV: NOT INSTALLED")
+            deps_ok = False
+        
+        try:
+            import img2pdf
+            self.logger.info(f"✓ img2pdf: Installed (5.8x faster PDF)")
+        except ImportError:
+            self.logger.warning(f"⚠ img2pdf: Not installed (slower PDF creation)")
+        
+        # Check 5: System resources
+        try:
+            import psutil
+            ram_gb = psutil.virtual_memory().total / (1024**3)
+            available_ram_gb = psutil.virtual_memory().available / (1024**3)
+            cpu_cores = psutil.cpu_count()
+            self.logger.info(f"✓ System RAM: {ram_gb:.1f} GB ({available_ram_gb:.1f} GB available)")
+            self.logger.info(f"✓ CPU Cores: {cpu_cores}")
+        except:
+            self.logger.warning(f"⚠ Could not detect system resources")
+        
+        self.logger.info("=" * 70)
+        if deps_ok:
+            self.logger.info("✅ Diagnostics Complete - System Ready!")
+        else:
+            self.logger.error("❌ Some dependencies missing - System may not work!")
+        self.logger.info("=" * 70)
 
 class LogCapture:
     """Capture stdout and display in GUI"""
