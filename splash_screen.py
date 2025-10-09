@@ -22,6 +22,7 @@ class SplashScreen:
             self.is_root = False
         
         self.root.overrideredirect(True)  # Remove window decorations
+        self.root.attributes('-topmost', True)  # Always on top
         
         # Get screen dimensions
         screen_width = self.root.winfo_screenwidth()
