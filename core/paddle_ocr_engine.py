@@ -20,7 +20,19 @@ class PaddleOCREngine:
     def _initialize_ocr(self):
         """Initialize PaddleOCR engine"""
         try:
+            import os
+            import sys
             from paddleocr import PaddleOCR
+            
+            # Set PaddleX home directory for EXE builds
+            if getattr(sys, 'frozen', False):
+                # Running as EXE - models are in _internal/.paddlex
+                base_path = sys._MEIPASS
+                paddlex_path = os.path.join(base_path, '.paddlex')
+                if os.path.exists(paddlex_path):
+                    os.environ['PADDLEX_HOME'] = paddlex_path
+                    if self.logger:
+                        self.logger.info(f"Using bundled PaddleX models: {paddlex_path}")
             
             # Initialize PaddleOCR 3.2+ (simplified API)
             self.ocr_engine = PaddleOCR()
