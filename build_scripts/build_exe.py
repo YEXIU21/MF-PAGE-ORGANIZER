@@ -26,7 +26,7 @@ def main():
         icon_src = root_dir / 'PageAutomationic.png'
         icon_dst = build_dir / 'icon.ico'
         img = Image.open(icon_src)
-        img.save(icon_dst, format='ICO', sizes=[(256,256)])
+        img.save(icon_dst, format='ICO', sizes=[(16,16), (32,32), (48,48), (256,256)])
         print("✓ Icon created")
     except Exception as e:
         print(f"✗ Icon failed: {e}")

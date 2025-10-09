@@ -39,6 +39,14 @@ class MFPageOrganizerApp:
         self.root = root
         self.root.title("MF Page Organizer - Smart Document Organizer")
         
+        # Set AppUserModelID for Windows 11 taskbar icon
+        try:
+            import ctypes
+            myappid = 'YEXIU.MFPageOrganizer.GUI.1.0'
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except:
+            pass  # Not on Windows or failed
+        
         # Theme management (will be applied after UI is built)
         self.current_theme = "dark"  # Force dark mode for now
         self.detect_system_theme()
