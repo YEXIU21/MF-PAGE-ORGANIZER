@@ -49,7 +49,7 @@ def main():
         '--clean',
         '--noconfirm',
         f'--additional-hooks-dir={build_dir}',  # Use our custom hooks
-        f'--splash={build_dir / "splash_screen.py"}',
+        f'--splash={root_dir / "PageAutomationic.png"}',  # Use icon as splash screen
         f'--add-data={root_dir / "core"}{os.pathsep}core',
         f'--add-data={root_dir / "utils"}{os.pathsep}utils',
         # Splash screen support
