@@ -103,6 +103,14 @@ class MFPageOrganizerApp:
         
         # Force another update to ensure theme is applied
         self.root.update()
+        
+        # Close PyInstaller splash screen after GUI is fully loaded
+        # This ensures smooth transition from splash to main window
+        try:
+            import pyi_splash
+            pyi_splash.close()
+        except:
+            pass  # Not running as EXE with splash or already closed
     
     def center_window(self):
         """Center the window on screen"""

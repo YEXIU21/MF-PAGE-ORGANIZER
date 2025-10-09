@@ -52,9 +52,8 @@ def main():
         f'--splash={root_dir / "PageAutomationic.png"}',  # Use icon as splash screen
         f'--add-data={root_dir / "core"}{os.pathsep}core',
         f'--add-data={root_dir / "utils"}{os.pathsep}utils',
-        # Splash screen support
-        f'--add-data={root_dir / "splash_screen.py"}{os.pathsep}.',
         # Icon files for GUI
+        # Note: splash_screen.py NOT included - EXE uses PyInstaller image splash only
         f'--add-data={root_dir / "PageAutomationic.png"}{os.pathsep}.',  # Add PNG for fallback
         # Configuration
         f'--add-data={root_dir / "config.json"}{os.pathsep}.',

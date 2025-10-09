@@ -52,7 +52,7 @@ def main():
         f'--additional-hooks-dir={build_dir}',  # Use our custom hooks
         f'--add-data={root_dir / "core"}{os.pathsep}core',
         f'--add-data={root_dir / "utils"}{os.pathsep}utils',
-        f'--add-data={root_dir / "splash_screen.py"}{os.pathsep}.',
+        # Note: splash_screen.py NOT included - only for script mode
         f'--add-data={icon_dst}{os.pathsep}.',  # Add icon to bundle
         f'--add-data={root_dir / "PageAutomationic.png"}{os.pathsep}.',  # Add PNG for fallback
         f'--add-data={root_dir / "config.json"}{os.pathsep}.',  # Add config file
