@@ -39,9 +39,11 @@ class MFPageOrganizerApp:
         self.root = root
         self.root.title("MF Page Organizer - Smart Document Organizer")
         
-        # Close PyInstaller splash screen after 4 seconds (maximum display time)
+        # Close PyInstaller splash screen after 4 seconds (only for image splash builds)
         try:
             import pyi_splash
+            # Only set timeout if this is an image splash build
+            # Custom splash builds don't use pyi_splash
             import threading
             
             def close_splash_after_timeout():
@@ -55,7 +57,7 @@ class MFPageOrganizerApp:
             # Start timeout thread
             threading.Thread(target=close_splash_after_timeout, daemon=True).start()
         except:
-            pass  # Not running as EXE with splash
+            pass  # Not running as EXE with image splash
         
         # Set AppUserModelID for Windows 11 taskbar icon
         try:
@@ -930,9 +932,25 @@ def main():
 if __name__ == "__main__":
     # Simple and reliable startup - works in both script and EXE mode
     try:
+        # Detect if we should show custom splash
+        is_frozen = getattr(sys, 'frozen', False)
+        use_custom_splash = False
+        
+        if not is_frozen:
+            # Script mode - use custom splash
+            use_custom_splash = True
+        elif is_frozen:
+            # EXE mode - check if splash_screen.py is bundled
+            # If bundled, this is the custom splash build
+            try:
+                import splash_screen as splash_check
+                use_custom_splash = True  # Custom splash EXE
+            except ImportError:
+                use_custom_splash = False  # Image splash EXE
+        
         # Try to show splash screen if available
-        if show_splash_with_loading and not getattr(sys, 'frozen', False):
-            # Only use splash in script mode (not in EXE)
+        if show_splash_with_loading and use_custom_splash:
+            # Use custom Tkinter splash
             from splash_screen import SplashScreen
             import threading
             import time
