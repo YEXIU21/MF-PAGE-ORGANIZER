@@ -68,6 +68,8 @@ def main():
         '--hidden-import=paddleocr',
         '--hidden-import=paddle',
         '--hidden-import=numpy',
+        '--hidden-import=img2pdf',
+        '--hidden-import=pikepdf',
         '--hidden-import=threading',
         '--hidden-import=time',
         '--hidden-import=sys',

@@ -16,6 +16,13 @@ from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.utils import ImageReader
 import tempfile
 
+# Try to import img2pdf for fast PDF creation
+try:
+    import img2pdf
+    HAS_IMG2PDF = True
+except ImportError:
+    HAS_IMG2PDF = False
+
 from .input_handler import PageInfo
 from .ocr_engine import OCRResult
 from .numbering_system import OrderingDecision
@@ -77,7 +84,7 @@ class OutputManager:
     
     def _create_pdf_output(self, sorted_decisions: List[OrderingDecision], 
                           output_path: Path, input_folder_name: str = None) -> bool:
-        """Create PDF with reordered pages"""
+        """Create PDF with reordered pages using optimal method"""
         try:
             # Use folder name for PDF if provided
             if input_folder_name:
@@ -88,6 +95,28 @@ class OutputManager:
             
             self.logger.step(f"Creating PDF: {pdf_path}")
             
+            # Check if we need page annotations
+            needs_annotations = self.config.get('output.add_page_numbers', False)
+            
+            # Use fast img2pdf method if available and no annotations needed
+            if HAS_IMG2PDF and not needs_annotations:
+                try:
+                    self.logger.info("Using optimized PDF creation (img2pdf)")
+                    return self._create_pdf_fast(sorted_decisions, pdf_path)
+                except Exception as e:
+                    self.logger.warning(f"Fast PDF creation failed: {e}, falling back to standard method")
+            
+            # Fall back to standard ReportLab method
+            self.logger.info("Using standard PDF creation (ReportLab)")
+            return self._create_pdf_standard(sorted_decisions, pdf_path)
+            
+        except Exception as e:
+            self.logger.error(f"Failed to create PDF: {str(e)}")
+            return False
+    
+    def _create_pdf_standard(self, sorted_decisions: List[OrderingDecision], pdf_path: Path) -> bool:
+        """Create PDF using ReportLab (standard method with annotations support)"""
+        try:
             # Get page size from first image
             first_page = sorted_decisions[0].page_info
             if first_page.image:
@@ -142,8 +171,70 @@ class OutputManager:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to create PDF: {str(e)}")
+            self.logger.error(f"Failed to create standard PDF: {str(e)}")
             return False
+    
+    def _create_pdf_fast(self, sorted_decisions: List[OrderingDecision], pdf_path: Path) -> bool:
+        """Create PDF using img2pdf (fast method for image-only PDFs)"""
+        try:
+            import io
+            
+            # Collect images in order
+            image_data_list = []
+            
+            for i, decision in enumerate(sorted_decisions):
+                self.logger.progress("Adding pages to PDF (fast)", i + 1, len(sorted_decisions))
+                
+                page_info = decision.page_info
+                if not page_info.image:
+                    self.logger.warning(f"No image data for {page_info.original_name}")
+                    continue
+                
+                # Convert PIL Image to bytes for img2pdf
+                img_bytes = io.BytesIO()
+                
+                # Save as JPEG for best compatibility
+                if page_info.image.mode == 'RGBA':
+                    # Convert RGBA to RGB (JPEG doesn't support transparency)
+                    rgb_image = page_info.image.convert('RGB')
+                    rgb_image.save(img_bytes, format='JPEG', quality=95)
+                elif page_info.image.mode == 'P':
+                    # Convert palette to RGB
+                    rgb_image = page_info.image.convert('RGB')
+                    rgb_image.save(img_bytes, format='JPEG', quality=95)
+                else:
+                    page_info.image.save(img_bytes, format='JPEG', quality=95)
+                
+                img_bytes.seek(0)
+                image_data_list.append(img_bytes.getvalue())
+            
+            # Create PDF from images in one shot
+            self.logger.info(f"Combining {len(image_data_list)} pages into PDF...")
+            pdf_bytes = img2pdf.convert(image_data_list)
+            
+            # Write PDF to file
+            with open(pdf_path, 'wb') as f:
+                f.write(pdf_bytes)
+            
+            self.logger.success(f"PDF created: {pdf_path}")
+            
+            # Compress PDF if requested
+            if self.config.get('output.compress_pdf', False):
+                self.logger.info("Compressing PDF...")
+                compressed_path = self._compress_pdf(pdf_path)
+                if compressed_path:
+                    original_size = pdf_path.stat().st_size / (1024 * 1024)
+                    compressed_size = compressed_path.stat().st_size / (1024 * 1024)
+                    reduction = ((original_size - compressed_size) / original_size) * 100
+                    self.logger.success(f"PDF compressed: {original_size:.1f}MB → {compressed_size:.1f}MB ({reduction:.1f}% reduction)")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to create fast PDF: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            raise  # Re-raise to trigger fallback
     
     def _create_images_output(self, sorted_decisions: List[OrderingDecision], 
                              output_path: Path) -> bool:

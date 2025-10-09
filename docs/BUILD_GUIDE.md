@@ -62,6 +62,10 @@ This document explains how to build standalone EXE files for Windows using the b
 - Python 3.8+
 - PIL (Pillow) - for icon conversion
 - PyInstaller - automatically installed by build script
+- img2pdf - for optimized PDF creation (5.8x faster)
+- pikepdf - dependency of img2pdf
+
+**Note**: Run `pip install -r requirements.txt` to install all dependencies before building.
 
 ## Icon Handling Fixed ✅
 

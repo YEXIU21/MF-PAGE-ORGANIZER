@@ -62,6 +62,8 @@ def main():
         '--hidden-import=paddleocr',
         '--hidden-import=paddle',
         '--hidden-import=numpy',
+        '--hidden-import=img2pdf',
+        '--hidden-import=pikepdf',
         str(root_dir / 'gui_mf.py')
     ]
     
