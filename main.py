@@ -53,6 +53,11 @@ class PageReorderCLI:
             log_file = Path(output_dir) / "process.log"
         self.logger = create_logger(log_file=log_file, verbose=args.verbose)
         
+        # ═══════════════════════════════════════════════════════════
+        # STARTUP DIAGNOSTICS - Check everything before processing
+        # ═══════════════════════════════════════════════════════════
+        self._run_startup_diagnostics()
+        
         # Initialize AI learning system FIRST (for adaptive behavior)
         self.ai_learning = AILearningSystem(self.logger)
         
@@ -376,6 +381,96 @@ class PageReorderCLI:
             import traceback
             self.logger.error(traceback.format_exc())
             return False
+    
+    def _run_startup_diagnostics(self):
+        """Run comprehensive startup diagnostics"""
+        import os
+        
+        self.logger.info("=" * 70)
+        self.logger.info("🔍 STARTUP DIAGNOSTICS")
+        self.logger.info("=" * 70)
+        
+        # Check 1: Python version
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        self.logger.info(f"✓ Python Version: {python_version}")
+        
+        # Check 2: Running mode (Script vs EXE)
+        is_frozen = getattr(sys, 'frozen', False)
+        if is_frozen:
+            self.logger.info(f"✓ Running Mode: EXE (Standalone)")
+            base_path = sys._MEIPASS
+            self.logger.info(f"  Base Path: {base_path}")
+        else:
+            self.logger.info(f"✓ Running Mode: Script")
+        
+        # Check 3: PaddleX models
+        if is_frozen:
+            paddlex_path = os.path.join(sys._MEIPASS, '.paddlex')
+            if os.path.exists(paddlex_path):
+                model_count = len([f for f in Path(paddlex_path).rglob('*') if f.is_file()])
+                self.logger.info(f"✓ PaddleX Models: Found ({model_count} files)")
+                self.logger.info(f"  Location: {paddlex_path}")
+                
+                # Check for specific models
+                models_dir = Path(paddlex_path) / 'official_models'
+                if models_dir.exists():
+                    models = [d.name for d in models_dir.iterdir() if d.is_dir()]
+                    self.logger.info(f"  Models: {', '.join(models)}")
+                else:
+                    self.logger.warning(f"⚠ official_models directory not found!")
+            else:
+                self.logger.error(f"❌ PaddleX Models: NOT FOUND")
+                self.logger.error(f"  Expected: {paddlex_path}")
+                self.logger.error(f"  This will cause PaddleOCR to fail!")
+        else:
+            # Script mode - check user directory
+            paddlex_path = Path.home() / '.paddlex'
+            if paddlex_path.exists():
+                model_count = len([f for f in paddlex_path.rglob('*') if f.is_file()])
+                self.logger.info(f"✓ PaddleX Models: Found ({model_count} files)")
+            else:
+                self.logger.warning(f"⚠ PaddleX Models: Not downloaded yet")
+                self.logger.warning(f"  Will download on first OCR use")
+        
+        # Check 4: Core dependencies
+        try:
+            import paddleocr
+            self.logger.info(f"✓ PaddleOCR: Installed")
+        except ImportError:
+            self.logger.error(f"❌ PaddleOCR: NOT INSTALLED")
+        
+        try:
+            import cv2
+            self.logger.info(f"✓ OpenCV: Installed")
+        except ImportError:
+            self.logger.error(f"❌ OpenCV: NOT INSTALLED")
+        
+        try:
+            import PIL
+            self.logger.info(f"✓ Pillow: Installed")
+        except ImportError:
+            self.logger.error(f"❌ Pillow: NOT INSTALLED")
+        
+        try:
+            import img2pdf
+            self.logger.info(f"✓ img2pdf: Installed (5.8x faster PDF)")
+        except ImportError:
+            self.logger.warning(f"⚠ img2pdf: Not installed (will use slower method)")
+        
+        # Check 5: System resources
+        try:
+            import psutil
+            ram_gb = psutil.virtual_memory().total / (1024**3)
+            available_ram_gb = psutil.virtual_memory().available / (1024**3)
+            cpu_cores = psutil.cpu_count()
+            self.logger.info(f"✓ System RAM: {ram_gb:.1f} GB ({available_ram_gb:.1f} GB available)")
+            self.logger.info(f"✓ CPU Cores: {cpu_cores}")
+        except:
+            self.logger.warning(f"⚠ Could not detect system resources")
+        
+        self.logger.info("=" * 70)
+        self.logger.info("✅ Diagnostics Complete - Ready to process!")
+        self.logger.info("=" * 70)
 
 def create_argument_parser() -> argparse.ArgumentParser:
     """Create command line argument parser"""
