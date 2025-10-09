@@ -12,10 +12,20 @@ from typing import List, Dict, Optional
 class PaddleOCREngine:
     """PaddleOCR-based OCR engine - faster and more accurate than EasyOCR"""
     
+    # Class-level singleton to prevent reinitialization
+    _ocr_instance = None
+    _initialized = False
+    
     def __init__(self, logger=None, lang='en'):
         self.logger = logger
         self.lang = lang
-        self._initialize_ocr()
+        if not PaddleOCREngine._initialized:
+            self._initialize_ocr()
+        else:
+            # Reuse existing instance
+            self.ocr_engine = PaddleOCREngine._ocr_instance
+            if self.logger:
+                self.logger.info("Reusing existing PaddleOCR instance")
     
     def _initialize_ocr(self):
         """Initialize PaddleOCR engine"""
@@ -36,6 +46,10 @@ class PaddleOCREngine:
             
             # Initialize PaddleOCR 3.2+ (simplified API)
             self.ocr_engine = PaddleOCR()
+            
+            # Store as singleton
+            PaddleOCREngine._ocr_instance = self.ocr_engine
+            PaddleOCREngine._initialized = True
             
             if self.logger:
                 gpu_status = "GPU" if self._check_gpu() else "CPU"

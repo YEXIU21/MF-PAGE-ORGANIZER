@@ -4,6 +4,7 @@ Includes fallback methods for non-technical users
 """
 
 import os
+import sys
 import json
 import hashlib
 import re

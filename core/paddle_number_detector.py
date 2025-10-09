@@ -15,22 +15,28 @@ class NumberCandidate:
     """A potential page number with confidence score"""
     number: int
     text: str
-    location: str  # 'top_left', 'top_right', 'bottom_left', 'bottom_right'
     confidence: float
     reasoning: List[str]
     bbox: Optional[Tuple[int, int, int, int]] = None
 
 class PaddleNumberDetector:
-    """PaddleOCR-based page number detector - FAST & ACCURATE"""
+    """Advanced page number detector using PaddleOCR with AI learning"""
+    
+    # Class-level singleton to prevent reinitialization
+    _ocr_instance = None
+    _initialized = False
     
     def __init__(self, logger=None, lang='en'):
+        if PaddleNumberDetector._initialized:
+            return
+        
         self.logger = logger
         self.lang = lang
         
         # Initialize BRILLIANT AI Pattern Learning (YOUR VISION!)
         self.ai_learning = AIPatternLearning(logger)
         
-        # Initialize PaddleOCR with fallback
+        # Initialize PaddleOCR with fallback (singleton pattern)
         try:
             import os
             import sys
@@ -47,7 +53,14 @@ class PaddleNumberDetector:
                         self.logger.info(f"Using bundled PaddleX models: {paddlex_path}")
             
             # Initialize PaddleOCR 3.2+ (simplified API)
-            self.ocr = PaddleOCR()
+            if not PaddleNumberDetector._initialized:
+                self.ocr = PaddleOCR()
+                # Store as singleton
+                PaddleNumberDetector._ocr_instance = self.ocr
+                PaddleNumberDetector._initialized = True
+            else:
+                # Reuse existing instance
+                self.ocr = PaddleNumberDetector._ocr_instance
             
             if self.logger:
                 gpu_status = "GPU" if self._check_gpu() else "CPU"
