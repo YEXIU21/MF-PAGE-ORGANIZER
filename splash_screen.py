@@ -92,6 +92,16 @@ class SplashScreen:
         self.progress.pack(pady=(10, 20))
         self.progress.start(10)  # Start animation
         
+        # Developer info
+        developer_label = tk.Label(
+            main_frame,
+            text="Developed by Mark & Franzel",
+            font=('Arial', 9, 'bold'),
+            bg='#2c3e50',
+            fg='#3498db'
+        )
+        developer_label.pack(side='bottom', pady=(0, 5))
+        
         # Version info
         version_label = tk.Label(
             main_frame,
