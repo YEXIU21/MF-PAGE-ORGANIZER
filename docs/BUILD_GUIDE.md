@@ -34,28 +34,39 @@ This document explains how to build standalone EXE files for Windows using the b
 
 ## How to Build
 
-1. **Navigate to build_scripts folder:**
-   ```cmd
-   cd "build_scripts"
-   ```
+### Step 1: Prepare PaddleOCR Models (Required)
 
-2. **Choose your build type:**
+**IMPORTANT**: Before building the EXE, you must download PaddleOCR models:
 
-   **For fast startup (recommended for testing):**
-   ```cmd
-   python build_exe.py
-   ```
+```bash
+cd build_scripts
+python prepare_paddle_models.py
+```
 
-   **For enhanced experience with splash screen:**
-   ```cmd
-   python build_exe_with_splash.py
-   ```
+This script:
+- Downloads all required OCR models (~200MB, first-time only)
+- Caches models to `~/.paddleocr/`
+- Verifies models are ready for EXE bundling
 
-3. **Wait for build to complete** (5-10 minutes)
+**Skip this step = OCR won't work in the EXE!**
 
-4. **Test the EXE:**
-   - Navigate to the `dist` folder
-   - Double-click the EXE file to test
+### Step 2: Choose Your Build Type
+
+**Fast Startup Build** (No splash screen):
+```bash
+cd build_scripts
+python build_exe.py
+```
+
+**Enhanced Build** (With splash screen):
+```bash
+cd build_scripts
+python build_exe_with_splash.py
+```
+
+### Step 3: Test the EXE
+
+Navigate to the `dist` folder and run the EXE.
 
 ## Requirements
 
@@ -112,6 +123,19 @@ build_scripts/
 
 **If icon doesn't show:**
 - The icon is now properly included in both build versions
+
+**If OCR fails in the EXE** (shows "PaddleOCR not available" warnings):
+1. Run `python prepare_paddle_models.py` BEFORE building
+2. Verify models downloaded: Check `~/.paddleocr/` folder exists
+3. Rebuild the EXE with `--collect-all=paddleocr` (already in scripts)
+4. Check EXE size: Should be ~200-300MB (includes OCR models)
+5. If still failing, check logs for "PaddleOCR not available"
+
+**Build scripts now include:**
+- ✅ `--collect-all=paddleocr` - Bundles all PaddleOCR data
+- ✅ `--collect-all=paddle` - Bundles PaddlePaddle runtime
+- ✅ `--additional-hooks-dir` - Custom hooks for model cache
+- ✅ img2pdf optimization (5.8x faster PDF creation)
 - For EXE mode: looks for `icon.ico` in `sys._MEIPASS`
 - For script mode: converts PNG to ICO automatically
 

@@ -49,6 +49,7 @@ def main():
         f'--icon={icon_dst}',
         '--clean',
         '--noconfirm',
+        f'--additional-hooks-dir={build_dir}',  # Use our custom hooks
         f'--add-data={root_dir / "core"}{os.pathsep}core',
         f'--add-data={root_dir / "utils"}{os.pathsep}utils',
         f'--add-data={root_dir / "splash_screen.py"}{os.pathsep}.',
@@ -64,6 +65,9 @@ def main():
         '--hidden-import=numpy',
         '--hidden-import=img2pdf',
         '--hidden-import=pikepdf',
+        # PaddleOCR data - collect all model files
+        '--collect-all=paddleocr',
+        '--collect-all=paddle',
         str(root_dir / 'gui_mf.py')
     ]
     

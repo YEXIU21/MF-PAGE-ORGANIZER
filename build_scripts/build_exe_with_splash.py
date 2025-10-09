@@ -38,24 +38,23 @@ def main():
     print("✓ PyInstaller ready")
     
     # Step 3: Build with splash screen support
-    print("\n[3/3] Building Enhanced EXE with Splash Screen (5-10 minutes)...")
     print("Please wait...")
     
     cmd = [
         sys.executable, '-m', 'PyInstaller',
         '--name=PageAutomationEnhanced',
-        '--onedir',  # Create folder with EXE
-        '--windowed',  # No console
+        '--onedir',
+        '--windowed',
         f'--icon={icon_dst}',
         '--clean',
         '--noconfirm',
-        # Core modules
+        f'--additional-hooks-dir={build_dir}',  # Use our custom hooks
+        f'--splash={build_dir / "splash_screen.py"}',
         f'--add-data={root_dir / "core"}{os.pathsep}core',
         f'--add-data={root_dir / "utils"}{os.pathsep}utils',
         # Splash screen support
         f'--add-data={root_dir / "splash_screen.py"}{os.pathsep}.',
         # Icon files for GUI
-        f'--add-data={icon_dst}{os.pathsep}.',  # Add icon to bundle
         f'--add-data={root_dir / "PageAutomationic.png"}{os.pathsep}.',  # Add PNG for fallback
         # Configuration
         f'--add-data={root_dir / "config.json"}{os.pathsep}.',
@@ -75,6 +74,9 @@ def main():
         '--hidden-import=sys',
         '--hidden-import=os',
         '--hidden-import=pathlib',
+        # PaddleOCR data - collect all model files
+        '--collect-all=paddleocr',
+        '--collect-all=paddle',
         # Main GUI entry point
         str(root_dir / 'gui_mf.py')
     ]
