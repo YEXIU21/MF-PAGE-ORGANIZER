@@ -77,6 +77,8 @@ def main():
         # PaddleOCR data - collect all model files
         '--collect-all=paddleocr',
         '--collect-all=paddle',
+        # PaddleOCR/PaddleX models from user directory (CRITICAL for OCR)
+        f'--add-data={Path.home() / ".paddlex"}{os.pathsep}.paddlex',
         # Main GUI entry point
         str(root_dir / 'gui_mf.py')
     ]
