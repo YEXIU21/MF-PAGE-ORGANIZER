@@ -26,11 +26,18 @@ class Preprocessor:
         self.crop_validator = CropValidator(logger)
         self.interactive_cropper = InteractiveCropper(logger)
     
-    def process_batch(self, pages: List[PageInfo]) -> List[PageInfo]:
-        """Process a batch of pages with enhanced memory management"""
+    def process_batch(self, pages: List[PageInfo], workers: int = 1) -> List[PageInfo]:
+        """Process a batch of pages with enhanced memory management (supports multi-threading)
+        
+        Args:
+            pages: List of pages to process
+            workers: Number of worker threads (1 = sequential, 2+ = parallel)
+        
+        Returns:
+            List of processed pages
+        """
         import gc
         import psutil
-        processed_pages = []
         
         # Determine optimal batch size based on available memory
         available_memory_gb = psutil.virtual_memory().available / (1024**3)
@@ -41,21 +48,72 @@ class Preprocessor:
         else:
             memory_check_interval = 50  # Check every 50 pages if high memory
         
-        for i, page in enumerate(pages):
-            # Check for cancellation
-            if hasattr(self, 'cancel_processing') and self.cancel_processing:
-                self.logger.info("Processing cancelled by user")
-                break
-                
-            self.logger.progress("Preprocessing", i + 1, len(pages))
+        if workers > 1:
+            # Multi-threaded processing
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             
-            try:
-                processed_page = self.process_page(page)
-                processed_pages.append(processed_page)
-            except Exception as e:
-                self.logger.error(f"Failed to preprocess {page.original_name}: {str(e)}")
-                # Keep original page if preprocessing fails
-                processed_pages.append(page)
+            if self.logger:
+                self.logger.info(f"⚡ Using {workers} workers for parallel preprocessing")
+            
+            processed_pages = [None] * len(pages)  # Pre-allocate results list
+            
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                # Submit all tasks
+                future_to_index = {
+                    executor.submit(self.process_page, page): i 
+                    for i, page in enumerate(pages)
+                }
+                
+                # Collect results as they complete
+                completed = 0
+                for future in as_completed(future_to_index):
+                    if hasattr(self, 'cancel_processing') and self.cancel_processing:
+                        if self.logger:
+                            self.logger.info("Processing cancelled by user")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    
+                    idx = future_to_index[future]
+                    try:
+                        processed_pages[idx] = future.result()
+                        completed += 1
+                        if self.logger:
+                            self.logger.progress("Preprocessing", completed, len(pages))
+                    except Exception as e:
+                        if self.logger:
+                            self.logger.error(f"Failed to preprocess page {idx}: {str(e)}")
+                        # Keep original page if preprocessing fails
+                        processed_pages[idx] = pages[idx]
+                    
+                    # Periodic memory check
+                    if completed % memory_check_interval == 0:
+                        gc.collect()
+                        current_memory_gb = psutil.virtual_memory().available / (1024**3)
+                        if current_memory_gb < 1:
+                            if self.logger:
+                                self.logger.warning(f"Low memory detected: {current_memory_gb:.1f}GB available")
+            
+            return processed_pages
+        
+        else:
+            # Sequential processing (original behavior)
+            processed_pages = []
+            
+            for i, page in enumerate(pages):
+                # Check for cancellation
+                if hasattr(self, 'cancel_processing') and self.cancel_processing:
+                    self.logger.info("Processing cancelled by user")
+                    break
+                    
+                self.logger.progress("Preprocessing", i + 1, len(pages))
+                
+                try:
+                    processed_page = self.process_page(page)
+                    processed_pages.append(processed_page)
+                except Exception as e:
+                    self.logger.error(f"Failed to preprocess {page.original_name}: {str(e)}")
+                    # Keep original page if preprocessing fails
+                    processed_pages.append(page)
             
             # Enhanced memory management
             if (i + 1) % memory_check_interval == 0:

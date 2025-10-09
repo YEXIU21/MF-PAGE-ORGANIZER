@@ -167,21 +167,76 @@ class OCREngine:
         else:
             print(f"ERROR: {message}")
     
-    def process_batch(self, pages: List[PageInfo]) -> List[OCRResult]:
-        """Process multiple pages with OCR"""
-        results = []
-        for i, page in enumerate(pages):
-            # Check for cancellation
-            if hasattr(self, 'cancel_processing') and self.cancel_processing:
-                if self.logger:
-                    self.logger.info("OCR processing cancelled by user")
-                break
-                
+    def process_batch(self, pages: List[PageInfo], workers: int = 1) -> List[OCRResult]:
+        """Process multiple pages with OCR (supports multi-threading)
+        
+        Args:
+            pages: List of pages to process
+            workers: Number of worker threads (1 = sequential, 2+ = parallel)
+        
+        Returns:
+            List of OCR results
+        """
+        if workers > 1:
+            # Multi-threaded processing
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
             if self.logger:
-                self.logger.progress("OCR Processing", i + 1, len(pages))
-            result = self.process_page(page)
-            results.append(result)
-        return results
+                self.logger.info(f"⚡ Using {workers} workers for parallel OCR processing")
+            
+            results = [None] * len(pages)  # Pre-allocate results list
+            
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                # Submit all tasks
+                future_to_index = {
+                    executor.submit(self.process_page, page): i 
+                    for i, page in enumerate(pages)
+                }
+                
+                # Collect results as they complete
+                completed = 0
+                for future in as_completed(future_to_index):
+                    if hasattr(self, 'cancel_processing') and self.cancel_processing:
+                        if self.logger:
+                            self.logger.info("OCR processing cancelled by user")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    
+                    idx = future_to_index[future]
+                    try:
+                        results[idx] = future.result()
+                        completed += 1
+                        if self.logger:
+                            self.logger.progress("OCR Processing", completed, len(pages))
+                    except Exception as e:
+                        if self.logger:
+                            self.logger.error(f"OCR failed for page {idx}: {e}")
+                        # Create empty result as fallback
+                        results[idx] = OCRResult(
+                            page_info=pages[idx],
+                            full_text="",
+                            detected_number=None,
+                            confidence=0.0,
+                            processing_time=0.0
+                        )
+            
+            return results
+        
+        else:
+            # Sequential processing (original behavior)
+            results = []
+            for i, page in enumerate(pages):
+                # Check for cancellation
+                if hasattr(self, 'cancel_processing') and self.cancel_processing:
+                    if self.logger:
+                        self.logger.info("OCR processing cancelled by user")
+                    break
+                    
+                if self.logger:
+                    self.logger.progress("OCR Processing", i + 1, len(pages))
+                result = self.process_page(page)
+                results.append(result)
+            return results
     
     def process_page(self, page_info: PageInfo) -> OCRResult:
         """Process a page with OCR and number detection"""

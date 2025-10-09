@@ -132,6 +132,16 @@ class PageReorderCLI:
                 
                 # Get optimal performance settings based on AI + system resources
                 perf_settings = self.performance_optimizer.get_optimal_settings()
+                workers = perf_settings['workers']
+                
+                self.logger.info("=" * 70)
+                self.logger.info(f"🎯 SYSTEM OPTIMIZATION:")
+                self.logger.info(f"  CPU Cores: {perf_settings['cpu_cores']}")
+                self.logger.info(f"  Available RAM: {perf_settings['available_ram_gb']:.1f}GB / {perf_settings['total_ram_gb']:.1f}GB")
+                self.logger.info(f"  Performance Mode: {perf_settings['mode']}")
+                self.logger.info(f"  Worker Threads: {workers}")
+                self.logger.info(f"  Batch Size: {perf_settings['batch_size']}")
+                self.logger.info("=" * 70)
                 
                 # Estimate processing time with AI predictions
                 features_enabled = {
@@ -140,7 +150,10 @@ class PageReorderCLI:
                     'clean_circles': config.get('preprocessing.clean_dark_circles', False)
                 }
                 estimated_time = self.ai_learning.predict_processing_time(len(pages), features_enabled)
-                self.logger.info(f"⏱️ AI estimated processing time: {estimated_time:.1f} minutes")
+                # Adjust estimate based on workers
+                estimated_time_parallel = estimated_time / max(1, workers * 0.7)  # 70% efficiency factor
+                self.logger.info(f"⏱️ AI estimated time (sequential): {estimated_time:.1f} minutes")
+                self.logger.info(f"⏱️ Estimated time ({workers} workers): {estimated_time_parallel:.1f} minutes")
                 self.logger.info(f"✅ Stage 2 Complete: AI optimization applied")
                 
                 # ═══════════════════════════════════════════════════════════
@@ -175,7 +188,7 @@ class PageReorderCLI:
                         return False
                         
                     self.logger.step("STAGE 4: Preprocessing images")
-                    pages = self.preprocessor.process_batch(pages)
+                    pages = self.preprocessor.process_batch(pages, workers=workers)
                 
                 # Generate crop validation report if auto-crop was used
                 if config.get('preprocessing.auto_crop', False):
@@ -201,7 +214,7 @@ class PageReorderCLI:
                     return False
                     
                 self.logger.step("STAGE 5: Extracting text and numbers via OCR")
-                ocr_results = self.ocr_engine.process_batch(pages)
+                ocr_results = self.ocr_engine.process_batch(pages, workers=workers)
                 self.logger.info(f"✅ Stage 5 Complete: OCR processing done")
                 
                 # ═══════════════════════════════════════════════════════════

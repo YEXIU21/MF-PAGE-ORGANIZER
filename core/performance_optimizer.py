@@ -44,7 +44,10 @@ class PerformanceOptimizer:
         return settings
     
     def _calculate_optimal_workers(self, available_ram_gb: float, cpu_cores: int) -> Tuple[int, int, str]:
-        """Calculate optimal number of workers based on RAM and CPU"""
+        """Calculate optimal number of workers based on RAM and CPU
+        
+        Supports extreme systems: 2GB-1TB RAM, 1-1000 CPU cores
+        """
         
         # Ultra-low RAM (< 2GB available)
         if available_ram_gb < 2:
@@ -83,10 +86,32 @@ class PerformanceOptimizer:
             workers = min(8, cpu_cores)
             return workers, 200, f"Very High Performance ({workers} workers)"
         
-        # Extreme RAM (32GB+ available)
+        # Extreme RAM (32-64GB available)
+        elif available_ram_gb < 64:
+            workers = min(16, cpu_cores)
+            return workers, 300, f"Extreme Performance ({workers} workers)"
+        
+        # Server RAM (64-128GB available)
+        elif available_ram_gb < 128:
+            workers = min(32, cpu_cores)
+            return workers, 500, f"Server Performance ({workers} workers)"
+        
+        # Workstation RAM (128-256GB available)
+        elif available_ram_gb < 256:
+            workers = min(64, cpu_cores)
+            return workers, 800, f"Workstation Performance ({workers} workers)"
+        
+        # Datacenter RAM (256-512GB available)
+        elif available_ram_gb < 512:
+            workers = min(128, cpu_cores)
+            return workers, 1000, f"Datacenter Performance ({workers} workers)"
+        
+        # Supercomputer RAM (512GB-1TB+ available)
         else:
-            workers = min(12, cpu_cores)
-            return workers, 300, f"Maximum Performance ({workers} workers)"
+            # For 1TB+ systems, use up to 80% of CPU cores (leave 20% for system)
+            workers = min(int(cpu_cores * 0.8), 1000)  # Cap at 1000 workers max
+            batch_size = min(2000, available_ram_gb // 2)  # ~2MB per page estimate
+            return workers, int(batch_size), f"Supercomputer Mode ({workers} workers)"
     
     def _calculate_memory_workers(self) -> int:
         """Calculate workers based on available RAM"""
