@@ -5,6 +5,7 @@ Shows custom splash_screen.py with loading messages and progress bar
 
 import subprocess
 import sys
+import os
 from pathlib import Path
 from PIL import Image
 
