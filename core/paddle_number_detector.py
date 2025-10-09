@@ -15,6 +15,7 @@ class NumberCandidate:
     """A potential page number with confidence score"""
     number: int
     text: str
+    location: str  # 'top_left', 'top_right', 'bottom_left', 'bottom_right', 'filename'
     confidence: float
     reasoning: List[str]
     bbox: Optional[Tuple[int, int, int, int]] = None
