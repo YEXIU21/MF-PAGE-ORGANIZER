@@ -36,13 +36,30 @@ class PaddleOCREngine:
             
             # Set PaddleX home directory for EXE builds
             if getattr(sys, 'frozen', False):
-                # Running as EXE - models are in _internal/.paddlex
+                # Running as EXE - models are in _internal directory
                 base_path = sys._MEIPASS
-                paddlex_path = os.path.join(base_path, '.paddlex')
-                if os.path.exists(paddlex_path):
-                    os.environ['PADDLEX_HOME'] = paddlex_path
+                
+                # Try multiple possible model locations
+                possible_paths = [
+                    os.path.join(base_path, '.paddlex'),
+                    os.path.join(base_path, '.paddleocr'), 
+                    os.path.join(base_path, 'paddleocr_models'),
+                    os.path.join(base_path, '_internal', '.paddlex'),
+                    os.path.join(base_path, '_internal', '.paddleocr')
+                ]
+                
+                models_found = False
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        os.environ['PADDLEX_HOME'] = path
+                        if self.logger:
+                            self.logger.info(f"Using bundled models: {path}")
+                        models_found = True
+                        break
+                
+                if not models_found:
                     if self.logger:
-                        self.logger.info(f"Using bundled PaddleX models: {paddlex_path}")
+                        self.logger.warning("No bundled models found, PaddleOCR will download models on first use")
             
             # Initialize PaddleOCR 3.2+ (simplified API)
             self.ocr_engine = PaddleOCR()
@@ -51,8 +68,8 @@ class PaddleOCREngine:
             PaddleOCREngine._ocr_instance = self.ocr_engine
             PaddleOCREngine._initialized = True
             
+            gpu_status = "GPU" if self._check_gpu() else "CPU"
             if self.logger:
-                gpu_status = "GPU" if self._check_gpu() else "CPU"
                 self.logger.info(f"PaddleOCR engine initialized ({gpu_status})")
             else:
                 print(f"PaddleOCR initialized successfully ({gpu_status})")
@@ -89,7 +106,7 @@ class PaddleOCREngine:
             img_array = np.array(image)
             
             # Run PaddleOCR
-            results = self.ocr_engine.ocr(img_array, cls=True)
+            results = self.ocr_engine.ocr(img_array)
             
             if not results or not results[0]:
                 return ""
@@ -97,9 +114,12 @@ class PaddleOCREngine:
             # Extract text from all detected boxes
             text_lines = []
             for line in results[0]:
-                bbox, (text, confidence) = line
-                if confidence > 0.5:  # Filter low confidence
-                    text_lines.append(text)
+                if len(line) >= 2:
+                    bbox, text_info = line
+                    if isinstance(text_info, tuple) and len(text_info) >= 2:
+                        text, confidence = text_info
+                        if confidence > 0.5:  # Filter low confidence
+                            text_lines.append(text)
             
             # Join all text
             full_text = " ".join(text_lines)

@@ -67,6 +67,16 @@ def main():
         '--hidden-import=cv2',
         '--hidden-import=paddleocr',
         '--hidden-import=paddle',
+        '--hidden-import=paddleocr.paddleocr',
+        '--hidden-import=paddle.inference',
+        '--hidden-import=paddle.framework',
+        '--hidden-import=paddle.fluid',
+        '--hidden-import=ppocr',
+        '--hidden-import=ppocr.utils',
+        '--hidden-import=ppocr.data',
+        '--hidden-import=ppocr.modeling',
+        '--hidden-import=ppocr.postprocess',
+        '--hidden-import=ppocr.tools',
         '--hidden-import=numpy',
         '--hidden-import=img2pdf',
         '--hidden-import=pikepdf',
@@ -75,11 +85,16 @@ def main():
         '--hidden-import=sys',
         '--hidden-import=os',
         '--hidden-import=pathlib',
-        # PaddleOCR data - collect all model files
+        # PaddleOCR data - collect all model files (ENHANCED FOR STANDALONE)
         '--collect-all=paddleocr',
         '--collect-all=paddle',
+        '--collect-data=paddleocr',
+        '--collect-data=paddle',
+        '--collect-submodules=paddleocr',
+        '--collect-submodules=paddle',
         # PaddleOCR/PaddleX models from user directory (CRITICAL for OCR)
-        f'--add-data={Path.home() / ".paddlex"}{os.pathsep}.paddlex',
+        *([f'--add-data={Path.home() / ".paddlex"}{os.pathsep}.paddlex'] if (Path.home() / ".paddlex").exists() else []),
+        *([f'--add-data={Path.home() / ".paddleocr"}{os.pathsep}.paddleocr'] if (Path.home() / ".paddleocr").exists() else []),
         # Main GUI entry point
         str(root_dir / 'gui_mf.py')
     ]

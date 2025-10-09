@@ -45,13 +45,30 @@ class PaddleNumberDetector:
             
             # Set PaddleX home directory for EXE builds
             if getattr(sys, 'frozen', False):
-                # Running as EXE - models are in _internal/.paddlex
+                # Running as EXE - models are in _internal directory
                 base_path = sys._MEIPASS
-                paddlex_path = os.path.join(base_path, '.paddlex')
-                if os.path.exists(paddlex_path):
-                    os.environ['PADDLEX_HOME'] = paddlex_path
+                
+                # Try multiple possible model locations
+                possible_paths = [
+                    os.path.join(base_path, '.paddlex'),
+                    os.path.join(base_path, '.paddleocr'), 
+                    os.path.join(base_path, 'paddleocr_models'),
+                    os.path.join(base_path, '_internal', '.paddlex'),
+                    os.path.join(base_path, '_internal', '.paddleocr')
+                ]
+                
+                models_found = False
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        os.environ['PADDLEX_HOME'] = path
+                        if self.logger:
+                            self.logger.info(f"Using bundled models: {path}")
+                        models_found = True
+                        break
+                
+                if not models_found:
                     if self.logger:
-                        self.logger.info(f"Using bundled PaddleX models: {paddlex_path}")
+                        self.logger.warning("No bundled models found, PaddleOCR will download models on first use")
             
             # Initialize PaddleOCR 3.2+ (simplified API)
             if not PaddleNumberDetector._initialized:
@@ -230,36 +247,31 @@ class PaddleNumberDetector:
                 corner_image.save(temp_path, quality=95)  # High quality to preserve details
             
             try:
-                # Use PaddleOCR 3.2+ predict API
-                results = self.ocr.predict(temp_path)
+                # Use PaddleOCR ocr API (compatible with latest version)
+                results = self.ocr.ocr(temp_path)
                 
-                if results and len(results) > 0:
-                    result = results[0]  # First result
-                    
-                    # Extract detected texts and scores
-                    if 'rec_texts' in result and 'rec_scores' in result:
-                        texts = result['rec_texts']
-                        scores = result['rec_scores']
-                        polys = result.get('rec_polys', [])
-                        
-                        for i, (text, score) in enumerate(zip(texts, scores)):
-                            if text.strip():  # Skip empty text
-                                # Extract page numbers from text
-                                page_numbers = self._extract_numbers(text, corner_name, score * 100)
+                if results and len(results) > 0 and results[0]:
+                    # PaddleOCR returns list of [[[x1,y1],[x2,y2],[x3,y3],[x4,y4]], (text, confidence)]
+                    for line in results[0]:
+                        bbox, (text, score) = line
+                        if text.strip():  # Skip empty text
+                            # Extract page numbers from text
+                            page_numbers = self._extract_numbers(text, corner_name, score * 100)
+                            
+                            for candidate in page_numbers:
+                                # Adjust bbox coordinates
+                                if bbox and len(bbox) >= 4:
+                                    x_coords = [point[0] for point in bbox]
+                                    y_coords = [point[1] for point in bbox]
+                                    x_min = int(min(x_coords)) + offset_x
+                                    y_min = int(min(y_coords)) + offset_y
+                                    x_max = int(max(x_coords)) + offset_x
+                                    y_max = int(max(y_coords)) + offset_y
+                                    candidate.bbox = (x_min, y_min, x_max, y_max)
                                 
-                                for candidate in page_numbers:
-                                    # Adjust bbox coordinates if available
-                                    if i < len(polys) and len(polys[i]) > 0:
-                                        poly = polys[i]
-                                        x_min = int(min(poly[:, 0])) + offset_x
-                                        y_min = int(min(poly[:, 1])) + offset_y
-                                        x_max = int(max(poly[:, 0])) + offset_x
-                                        y_max = int(max(poly[:, 1])) + offset_y
-                                        candidate.bbox = (x_min, y_min, x_max, y_max)
-                                    
-                                    candidates.append(candidate)
-                                    if self.logger:
-                                        self.logger.debug(f"✅ {corner_name}: Found '{text}' → {candidate.number} (conf: {score*100:.1f}%)")
+                                candidates.append(candidate)
+                                if self.logger:
+                                    self.logger.debug(f"✅ {corner_name}: Found '{text}' → {candidate.number} (conf: {score*100:.1f}%)")
                 
             finally:
                 # Clean up temporary file

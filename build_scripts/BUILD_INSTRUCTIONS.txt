@@ -1,16 +1,38 @@
 # MF Page Organizer - Build Instructions
 
-See docs/BUILD_GUIDE.md for complete build documentation.
+## Quick Start (Choose One):
 
-Quick Start:
-
-1. Fast Startup Build:
+1. **Fast Startup Build** (No splash, fastest launch):
+   ```
    python build_exe.py
+   ```
 
-2. Enhanced Build with Splash Screen:
+2. **Enhanced Build** (PyInstaller image splash):
+   ```
    python build_exe_with_splash.py
+   ```
 
-3. Output will be in dist/ folder
+3. **Custom Splash Build** (Tkinter progress bar):
+   ```
+   python build_exe_with_custom_splash.py
+   ```
 
-For detailed instructions, troubleshooting, and features comparison:
-See: docs/BUILD_GUIDE.md
+## Build Features:
+
+- **Fast Build**: Fastest startup, no splash screen
+- **Enhanced Build**: Beautiful image splash, fully featured
+- **Custom Build**: Animated progress bar, loading messages
+
+## PaddleOCR Support:
+
+All builds now include:
+- ✅ Full PaddleOCR bundling for offline OCR
+- ✅ Roman numeral detection (vi, vii, viii, ix, x, xi, xii)
+- ✅ Multi-position page number scanning
+- ✅ Automatic model pre-download
+
+## Output:
+
+Executables will be in `dist/` folder
+
+For detailed documentation: `docs/BUILD_GUIDE.md`

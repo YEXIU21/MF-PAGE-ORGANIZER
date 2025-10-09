@@ -52,8 +52,8 @@ def main():
         f'--additional-hooks-dir={build_dir}',  # Use our custom hooks
         f'--add-data={root_dir / "core"}{os.pathsep}core',
         f'--add-data={root_dir / "utils"}{os.pathsep}utils',
-        # Note: splash_screen.py NOT included - only for script mode
-        f'--add-data={icon_dst}{os.pathsep}.',  # Add icon to bundle
+        # Icon files for GUI (both ICO and PNG)
+        f'--add-data={icon_dst}{os.pathsep}.',  # Add ICO for taskbar/window
         f'--add-data={root_dir / "PageAutomationic.png"}{os.pathsep}.',  # Add PNG for fallback
         f'--add-data={root_dir / "config.json"}{os.pathsep}.',  # Add config file
         '--hidden-import=tkinter',
@@ -65,11 +65,14 @@ def main():
         '--hidden-import=numpy',
         '--hidden-import=img2pdf',
         '--hidden-import=pikepdf',
-        # PaddleOCR data - collect all model files
+        # PaddleOCR data - collect all model files (ENHANCED FOR STANDALONE)
         '--collect-all=paddleocr',
         '--collect-all=paddle',
+        '--collect-data=paddleocr',
+        '--collect-data=paddle',
         # PaddleOCR/PaddleX models from user directory (CRITICAL for OCR)
-        f'--add-data={Path.home() / ".paddlex"}{os.pathsep}.paddlex',
+        *([f'--add-data={Path.home() / ".paddlex"}{os.pathsep}.paddlex'] if (Path.home() / ".paddlex").exists() else []),
+        *([f'--add-data={Path.home() / ".paddleocr"}{os.pathsep}.paddleocr'] if (Path.home() / ".paddleocr").exists() else []),
         str(root_dir / 'gui_mf.py')
     ]
     
