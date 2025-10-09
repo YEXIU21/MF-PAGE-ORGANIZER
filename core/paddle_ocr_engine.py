@@ -32,15 +32,16 @@ class PaddleOCREngine:
         try:
             import os
             import sys
+            from pathlib import Path
             from paddleocr import PaddleOCR
             
             # Set PaddleX home directory for EXE builds
             if getattr(sys, 'frozen', False):
-                # Running as EXE - models are in _internal directory
+                # Running as EXE - check for bundled models first
                 base_path = sys._MEIPASS
                 
-                # Try multiple possible model locations
-                possible_paths = [
+                # Try multiple possible bundled model locations
+                bundled_paths = [
                     os.path.join(base_path, '.paddlex'),
                     os.path.join(base_path, '.paddleocr'), 
                     os.path.join(base_path, 'paddleocr_models'),
@@ -49,7 +50,7 @@ class PaddleOCREngine:
                 ]
                 
                 models_found = False
-                for path in possible_paths:
+                for path in bundled_paths:
                     if os.path.exists(path):
                         os.environ['PADDLEX_HOME'] = path
                         if self.logger:
@@ -58,8 +59,26 @@ class PaddleOCREngine:
                         break
                 
                 if not models_found:
+                    # No bundled models - check user's home directory
+                    user_paths = [
+                        Path.home() / '.paddlex',
+                        Path.home() / '.paddleocr'
+                    ]
+                    
+                    for user_path in user_paths:
+                        if user_path.exists() and any(user_path.rglob('*.pdparams')):
+                            os.environ['PADDLEX_HOME'] = str(user_path)
+                            if self.logger:
+                                self.logger.info(f"Using user models: {user_path}")
+                            models_found = True
+                            break
+                
+                if not models_found:
                     if self.logger:
-                        self.logger.warning("No bundled models found, PaddleOCR will download models on first use")
+                        self.logger.info("No models found - PaddleOCR will download automatically on first use")
+                    # Set a default path for model downloads
+                    default_path = Path.home() / '.paddlex'
+                    os.environ['PADDLEX_HOME'] = str(default_path)
             
             # Initialize PaddleOCR 3.2+ (simplified API)
             self.ocr_engine = PaddleOCR()

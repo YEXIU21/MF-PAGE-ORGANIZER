@@ -71,8 +71,7 @@ def main():
         '--collect-data=paddleocr',
         '--collect-data=paddle',
         # PaddleOCR/PaddleX models from user directory (CRITICAL for OCR)
-        *([f'--add-data={Path.home() / ".paddlex"}{os.pathsep}.paddlex'] if (Path.home() / ".paddlex").exists() else []),
-        *([f'--add-data={Path.home() / ".paddleocr"}{os.pathsep}.paddleocr'] if (Path.home() / ".paddleocr").exists() else []),
+        # Note: Models will be downloaded by PaddleOCR on first use if not bundled
         str(root_dir / 'gui_mf.py')
     ]
     

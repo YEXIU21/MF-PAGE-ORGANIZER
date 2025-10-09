@@ -9,6 +9,31 @@ import os
 from pathlib import Path
 from PIL import Image
 
+def _paddlex_models_exist():
+    """Check if PaddleX models exist"""
+    paddlex_dir = Path.home() / '.paddlex'
+    return paddlex_dir.exists() and any(paddlex_dir.rglob('*.pdparams'))
+
+def _get_paddlex_data_args():
+    """Get PaddleX data arguments, filtering out problematic files"""
+    args = []
+    paddlex_dir = Path.home() / '.paddlex'
+    
+    if paddlex_dir.exists():
+        # Only include model files, skip .git, .cache, and other problematic files
+        for model_file in paddlex_dir.rglob('*.pdparams'):
+            relative_path = model_file.relative_to(paddlex_dir)
+            args.append(f'--add-data={model_file}{os.pathsep}.paddlex/{relative_path}')
+        
+        # Also include other essential files but skip problematic ones
+        for essential_file in paddlex_dir.rglob('*'):
+            if essential_file.is_file() and essential_file.suffix in ['.yml', '.yaml', '.json', '.txt']:
+                if '.git' not in str(essential_file) and '.cache' not in str(essential_file):
+                    relative_path = essential_file.relative_to(paddlex_dir)
+                    args.append(f'--add-data={essential_file}{os.pathsep}.paddlex/{relative_path}')
+    
+    return args
+
 def main():
     print("=" * 70)
     print("BUILDING EXE WITH CUSTOM SPLASH (Tkinter)")
@@ -93,8 +118,8 @@ def main():
         '--collect-submodules=paddleocr',
         '--collect-submodules=paddle',
         # PaddleOCR/PaddleX models from user directory (CRITICAL for OCR)
-        *([f'--add-data={Path.home() / ".paddlex"}{os.pathsep}.paddlex'] if (Path.home() / ".paddlex").exists() else []),
-        *([f'--add-data={Path.home() / ".paddleocr"}{os.pathsep}.paddleocr'] if (Path.home() / ".paddleocr").exists() else []),
+        # Note: Only bundle model files, skip git and cache files
+        *(_get_paddlex_data_args() if _paddlex_models_exist() else []),
         # Main GUI entry point
         str(root_dir / 'gui_mf.py')
     ]

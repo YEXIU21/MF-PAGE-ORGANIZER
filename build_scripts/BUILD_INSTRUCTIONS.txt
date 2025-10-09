@@ -17,11 +17,23 @@
    python build_exe_with_custom_splash.py
    ```
 
+4. **★ One-File Build** (Single portable EXE):
+   ```
+   python build_exe_onefile.py
+   ```
+
+5. **★★ One-File + Models** (Fully offline EXE):
+   ```
+   python build_exe_onefile_with_models.py
+   ```
+
 ## Build Features:
 
-- **Fast Build**: Fastest startup, no splash screen
-- **Enhanced Build**: Beautiful image splash, fully featured
-- **Custom Build**: Animated progress bar, loading messages
+- **Fast Build**: Fastest startup, no splash screen, folder output
+- **Enhanced Build**: Beautiful image splash, fully featured, folder output
+- **Custom Build**: Animated progress bar, loading messages, folder output
+- **★ One-File Build**: Single EXE file, fully portable, larger size (~200-500MB)
+- **★★ One-File + Models**: Single EXE with models embedded, 100% offline (~800MB-1GB)
 
 ## PaddleOCR Support:
 
@@ -33,6 +45,24 @@ All builds now include:
 
 ## Output:
 
-Executables will be in `dist/` folder
+- **Folder builds**: `dist/[BuildName]/[BuildName].exe` + supporting files
+- **One-file build**: `dist/PageAutomationOneFile.exe` (single file)
+
+## Build Comparison:
+
+| Feature | Fast | Enhanced | Custom | One-File | One-File+Models |
+|---------|------|----------|--------|----------|-----------------|
+| Startup Speed | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
+| File Size | Small | Medium | Medium | Large | Very Large |
+| Portability | Medium | Medium | Medium | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Offline OCR | Download | Download | Download | Download | ⭐⭐⭐⭐⭐ |
+| Splash Screen | None | Image | Progress Bar | None | None |
+| PaddleOCR | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+**Recommendation**: 
+- **Development/Testing**: Use Fast Build
+- **Professional Distribution**: Use Enhanced Build  
+- **Portable/Sharing**: Use One-File Build
+- **Offline/Air-gapped**: Use One-File + Models Build
 
 For detailed documentation: `docs/BUILD_GUIDE.md`

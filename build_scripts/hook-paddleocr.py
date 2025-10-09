@@ -55,33 +55,8 @@ hiddenimports += [
     'lanms-neo',
 ]
 
-# Try to collect PaddleOCR model files from standard locations
-try:
-    # Check user's home directory for downloaded models
-    paddlex_home = Path.home() / '.paddlex'
-    if paddlex_home.exists():
-        for model_file in paddlex_home.rglob('*'):
-            if model_file.is_file():
-                datas.append((str(model_file), str(model_file.relative_to(Path.home()))))
-    
-    # Check user's .paddleocr directory for models
-    paddleocr_home = Path.home() / '.paddleocr'
-    if paddleocr_home.exists():
-        for model_file in paddleocr_home.rglob('*'):
-            if model_file.is_file():
-                datas.append((str(model_file), str(model_file.relative_to(Path.home()))))
-    
-    # Try to find models in PaddleOCR installation
-    import paddleocr
-    paddleocr_path = Path(paddleocr.__file__).parent
-    inference_path = paddleocr_path / 'inference'
-    if inference_path.exists():
-        for model_file in inference_path.rglob('*'):
-            if model_file.is_file():
-                datas.append((str(model_file), f'paddleocr_models/{model_file.relative_to(inference_path)}'))
-
-    print("✅ PaddleOCR hook: Models bundled successfully")
-    
-except Exception as e:
-    print(f"⚠️  PaddleOCR hook warning: {e}")
-    # Continue without models - runtime will download them if needed
+# PaddleOCR models will be downloaded automatically on first run
+# This avoids build conflicts with .git and .cache files in model directories
+print("ℹ️  PaddleOCR hook: Skipping model bundling to avoid conflicts")
+print("ℹ️  Models will be downloaded automatically on first OCR use")
+print("✅ PaddleOCR hook: Dependencies collected successfully")
