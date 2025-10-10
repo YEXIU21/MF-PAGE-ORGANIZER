@@ -117,7 +117,11 @@ class PaddleNumberDetector:
             
             # Initialize PaddleOCR 3.2+ (simplified API)
             if not PaddleNumberDetector._initialized:
+                if self.logger:
+                    self.logger.info("📝 About to call PaddleOCR()...")
                 self.ocr = PaddleOCR()
+                if self.logger:
+                    self.logger.info(f"✅ PaddleOCR() returned: {self.ocr}")
                 # Store as singleton
                 PaddleNumberDetector._ocr_instance = self.ocr
                 PaddleNumberDetector._initialized = True
