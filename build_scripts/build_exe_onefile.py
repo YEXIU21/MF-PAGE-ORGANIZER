@@ -128,19 +128,52 @@ def main():
     if models_dir and models_dir.exists():
         cmd.append(f'--add-data={models_dir}{os.pathsep}.paddlex')
     
-    # ★ MINIMAL imports only - prevent auto-discovery of bloated packages
-    minimal_imports = [
+    # ★ COMPLETE imports for GUI functionality
+    essential_imports = [
+        # GUI and UI
         '--hidden-import=tkinter',
+        '--hidden-import=tkinter.ttk',
+        '--hidden-import=tkinter.filedialog',
+        '--hidden-import=tkinter.messagebox',
+        
+        # Core application modules (CRITICAL FOR FUNCTIONALITY)
+        '--hidden-import=core',
+        '--hidden-import=core.input_handler',
+        '--hidden-import=core.preprocessor', 
+        '--hidden-import=core.ocr_engine',
+        '--hidden-import=core.numbering_system',
+        '--hidden-import=core.reordering_engine',
+        '--hidden-import=core.output_handler',
+        '--hidden-import=core.paddle_ocr_engine',
+        '--hidden-import=core.paddle_number_detector',
+        
+        # Utility modules (CRITICAL FOR FUNCTIONALITY)
+        '--hidden-import=utils',
+        '--hidden-import=utils.config',
+        '--hidden-import=utils.logger',
+        '--hidden-import=utils.file_utils',
+        '--hidden-import=utils.image_utils',
+        
+        # Standard library
+        '--hidden-import=threading',
+        '--hidden-import=tempfile',
+        '--hidden-import=shutil',
+        '--hidden-import=pathlib',
+        '--hidden-import=json',
+        
+        # Image processing
         '--hidden-import=PIL',
         '--hidden-import=PIL.Image', 
         '--hidden-import=PIL.ImageTk',
         '--hidden-import=cv2',
+        
+        # OCR and PDF
         '--hidden-import=paddleocr.paddleocr',  # Specific paddleocr only
         '--hidden-import=numpy',
         '--hidden-import=img2pdf',
         '--hidden-import=pikepdf'
     ]
-    cmd.extend(minimal_imports)
+    cmd.extend(essential_imports)
     
     # ★ NO collect-all commands that cause bloat
     # REMOVED: '--collect-all=paddle' (this causes the 5.60GB issue)
