@@ -66,7 +66,11 @@ class PaddleNumberDetector:
                     except:
                         pass  # Ignore if we can't create it
             
+            if self.logger:
+                self.logger.info("📦 Attempting to import PaddleOCR...")
             from paddleocr import PaddleOCR
+            if self.logger:
+                self.logger.info(f"✅ PaddleOCR imported successfully: {PaddleOCR}")
             
             # Set PaddleX home directory for EXE builds  
             if getattr(sys, 'frozen', False):
