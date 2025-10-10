@@ -58,15 +58,22 @@ python build_exe_onefile.py
 
 ## Prerequisites:
 
-Before building, ensure PaddleOCR models are downloaded:
+1. **Virtual Environment** (Recommended):
 ```bash
-python build_scripts/download_paddleocr_models.py
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install paddleocr paddlepaddle opencv-python pillow img2pdf pikepdf
 ```
+
+2. **PaddleOCR Models** (Optional - for offline operation):
+   - Models will be auto-downloaded on first use
+   - To bundle models: Ensure they exist in `~/.paddlex/` before building
+   - Build script automatically copies them if available
 
 ## Support Files:
 
-- `download_paddleocr_models.py` - Downloads PaddleOCR models
-- `hook-paddleocr.py` - PyInstaller hook for PaddleOCR
-- `icon.ico` - Application icon (auto-generated)
+- `hook-paddlex.py` - PyInstaller hook for PaddleX (fixes .version file)
+- `icon.ico` - Application icon (auto-generated during build)
+- `build_exe_folder.py` - Folder build script
+- `build_exe_onefile.py` - One-file build script
 
-**The build system is now clean and proven to work!** ✅
+**The build system is now clean, optimized, and proven to work!** ✅
