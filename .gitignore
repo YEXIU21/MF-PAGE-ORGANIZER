@@ -53,3 +53,8 @@ dist/
 # Temporary
 *.tmp
 temp/
+
+# PaddleOCR model files (large files - download dynamically)
+build_scripts/paddleocr_models/
+*.pdparams
+*.pdiparams
