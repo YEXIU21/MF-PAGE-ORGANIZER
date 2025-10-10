@@ -190,9 +190,13 @@ def main():
     # REMOVED: '--collect-all=paddle' (this causes the 5.60GB issue)
     # REMOVED: '--collect-all=paddleocr' (this pulls in too much)
     
-    # Only collect specific paddleocr data
+    # ★ CRITICAL: Collect data files for paddle ecosystem
     cmd.extend([
         '--collect-data=paddleocr',
+        '--collect-data=paddlex',
+        '--collect-data=paddle',
+        '--collect-submodules=paddleocr',
+        '--collect-submodules=paddlex',
         str(root_dir / 'gui_mf.py')
     ])
     
