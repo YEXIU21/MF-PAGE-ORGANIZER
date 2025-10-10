@@ -31,6 +31,9 @@ class PaddleNumberDetector:
         self.logger = logger
         self.lang = lang
         
+        if self.logger:
+            self.logger.info("🔧 PaddleNumberDetector.__init__() called")
+        
         # Initialize BRILLIANT AI Pattern Learning (YOUR VISION!)
         self.ai_learning = AIPatternLearning(logger)
         
@@ -39,8 +42,11 @@ class PaddleNumberDetector:
             # Already initialized - reuse existing OCR instance
             self.ocr = PaddleNumberDetector._ocr_instance
             if self.logger:
-                self.logger.debug("♻️  Reusing existing PaddleOCR instance (singleton)")
+                self.logger.info(f"♻️  Reusing existing PaddleOCR instance (singleton): {self.ocr}")
             return
+        
+        if self.logger:
+            self.logger.info("🚀 First initialization - creating new PaddleOCR instance...")
         
         # Initialize PaddleOCR with fallback (singleton pattern)
         try:
@@ -152,7 +158,10 @@ class PaddleNumberDetector:
         # Fallback if PaddleOCR not available
         if self.ocr is None:
             if self.logger:
-                self.logger.warning("PaddleOCR not available, using filename fallback")
+                self.logger.error("❌ CRITICAL: self.ocr is None - PaddleOCR failed to initialize!")
+                self.logger.error(f"   Initialized flag: {PaddleNumberDetector._initialized}")
+                self.logger.error(f"   OCR instance: {PaddleNumberDetector._ocr_instance}")
+                self.logger.warning("   Using filename fallback instead of OCR")
             return self._fallback_detection(filename)
         
         # Scan all 4 corners
