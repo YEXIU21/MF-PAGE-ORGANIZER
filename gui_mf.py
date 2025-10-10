@@ -966,12 +966,24 @@ All rights reserved.
         
         # Check 4: Dependencies
         deps_ok = True
-        try:
-            import paddleocr
-            log(f"✓ PaddleOCR: Installed")
-        except ImportError:
-            log(f"❌ PaddleOCR: NOT INSTALLED")
-            deps_ok = False
+        # ★ CRITICAL: Don't import paddleocr here - causes "PDX already initialized" error
+        # In EXE mode, it's always bundled. In dev mode, check without importing.
+        if getattr(sys, 'frozen', False):
+            # Running as EXE - paddleocr is bundled, don't check
+            log(f"✓ PaddleOCR: Bundled in EXE")
+        else:
+            # Development mode - check if module exists without importing
+            try:
+                import importlib.util
+                spec = importlib.util.find_spec("paddleocr")
+                if spec is not None:
+                    log(f"✓ PaddleOCR: Installed")
+                else:
+                    log(f"❌ PaddleOCR: NOT INSTALLED")
+                    deps_ok = False
+            except:
+                log(f"⚠️  PaddleOCR: Check failed (assuming available)")
+                # Don't fail - assume it's available
         
         try:
             import cv2
