@@ -58,6 +58,16 @@ def main():
     
     build_dir = Path(__file__).parent
     root_dir = build_dir.parent
+    
+    # ★ CRITICAL: Use .venv Python if available (ensures correct dependencies)
+    venv_python = root_dir / '.venv' / 'Scripts' / 'python.exe'
+    if venv_python.exists():
+        python_exe = str(venv_python)
+        print(f"✅ Using virtual environment: {python_exe}")
+    else:
+        python_exe = sys.executable
+        print(f"⚠️  Using system Python: {python_exe}")
+        print("   Recommendation: Create .venv for better dependency management")
     # Clean old builds
     print("[1/5] Cleaning old builds...")
     for cleanup in ['build', 'dist']:
@@ -85,7 +95,7 @@ def main():
     
     # Install PyInstaller
     print("\n[4/5] Installing PyInstaller...")
-    subprocess.run([sys.executable, '-m', 'pip', 'install', 'pyinstaller', '--quiet'])
+    subprocess.run([python_exe, '-m', 'pip', 'install', 'pyinstaller', '--quiet'])
     print("✓ PyInstaller ready")
     
     # Build with OPTIMIZATION to prevent 5.60GB bloat
@@ -94,7 +104,7 @@ def main():
     print("⏳ This takes 15-20 minutes - please wait...")
     
     cmd = [
-        sys.executable, '-m', 'PyInstaller',
+        python_exe, '-m', 'PyInstaller',
         '--name=PageAutomationOneFile',
         '--onefile',  # ★ Single file
         '--windowed',
