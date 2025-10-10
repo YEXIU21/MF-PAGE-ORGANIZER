@@ -131,15 +131,27 @@ class PaddleNumberDetector:
                 
         except ImportError as e:
             if self.logger:
-                self.logger.warning(f"PaddleOCR not installed: {e}")
-                self.logger.warning("Install with: pip install paddleocr")
+                self.logger.error(f"❌ ImportError - PaddleOCR not installed: {e}")
+                self.logger.error("   Install with: pip install paddleocr")
+                import traceback
+                self.logger.error(f"   Traceback: {traceback.format_exc()}")
+            else:
+                print(f"❌ ImportError: {e}")
+                import traceback
+                print(traceback.format_exc())
             self.ocr = None
         except Exception as e:
             if self.logger:
-                self.logger.error(f"Failed to initialize PaddleOCR: {e}")
+                self.logger.error(f"❌ Exception - Failed to initialize PaddleOCR: {e}")
+                self.logger.error(f"   Exception type: {type(e).__name__}")
                 # Log full traceback for debugging
                 import traceback
-                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                self.logger.error(f"   Traceback: {traceback.format_exc()}")
+            else:
+                print(f"❌ Exception: {e}")
+                print(f"   Type: {type(e).__name__}")
+                import traceback
+                print(traceback.format_exc())
             self.ocr = None
     
     def _check_gpu(self) -> bool:
