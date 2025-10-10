@@ -101,6 +101,8 @@ def main():
         f'--icon={icon_dst}',
         '--clean',
         '--noconfirm',
+        '--noupx',  # ★ CRITICAL: Disable UPX to prevent interpreter corruption
+        '--runtime-tmpdir=.',  # ★ CRITICAL: Use current dir for temp extraction
         f'--additional-hooks-dir={build_dir}',
         
         # ★ CRITICAL: Exclude bloated packages that cause 5.60GB builds
@@ -108,8 +110,7 @@ def main():
         '--exclude-module=torchvision', 
         '--exclude-module=tensorflow',
         '--exclude-module=jax',
-        '--exclude-module=scipy.sparse.csgraph._validation',
-        '--exclude-module=scipy.spatial.ckdtree',
+        # Note: Be careful with scipy exclusions - only exclude specific submodules
         '--exclude-module=torch.distributed',
         '--exclude-module=torch.nn',
         '--exclude-module=torch.optim',
