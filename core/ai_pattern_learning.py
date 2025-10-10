@@ -4,6 +4,7 @@ Learns from previous pages to speed up detection on subsequent pages
 """
 from dataclasses import dataclass
 from collections import defaultdict
+from typing import List, Dict, Optional
 import time
 
 @dataclass
