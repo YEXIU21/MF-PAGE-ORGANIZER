@@ -915,6 +915,19 @@ All rights reserved.
         import os
         from pathlib import Path
         
+        # ★ CRITICAL: Wrap entire diagnostics in try-except to prevent crashes
+        try:
+            self._run_diagnostics_safe()
+        except Exception as e:
+            # Log error but don't crash
+            self.root.after(0, lambda: self._write_to_log(f"⚠️  Diagnostics error: {e}\n"))
+            self.root.after(0, lambda: self._write_to_log("✅ System will continue normally\n"))
+    
+    def _run_diagnostics_safe(self):
+        """Safe diagnostics that won't crash on errors"""
+        import os
+        from pathlib import Path
+        
         def log(msg):
             """Write to GUI log widget"""
             self.root.after(0, lambda: self._write_to_log(msg + "\n"))

@@ -44,14 +44,16 @@ class AIPatternLearning:
     def __init__(self, logger=None):
         self.logger = logger
         
-        # Location learning - ENHANCED with center positions
+        # Location learning - ENHANCED with center and middle positions
         self.location_patterns: Dict[str, LocationPattern] = {
             'top_left': LocationPattern('top_left'),
             'top_right': LocationPattern('top_right'),
             'bottom_left': LocationPattern('bottom_left'),
             'bottom_right': LocationPattern('bottom_right'),
             'bottom_center': LocationPattern('bottom_center'),  # Very common!
-            'top_center': LocationPattern('top_center')
+            'top_center': LocationPattern('top_center'),
+            'middle_left': LocationPattern('middle_left'),  # Edge middle positions
+            'middle_right': LocationPattern('middle_right')
         }
         
         # Number type learning
@@ -82,21 +84,21 @@ class AIPatternLearning:
         BRILLIANT ADAPTIVE SCANNING: Return corners in order of likelihood per number type
         YOUR VISION: Learn patterns for each numbering style separately!
         """
-        # LEARNING PHASE: Scan all corners until we have 10 detections of this number type
+        # LEARNING PHASE: Scan all positions until we have 10 detections of this number type
         if expected_number_type == 'roman' and not self.roman_learned:
             if self.logger:
                 self.logger.debug(f"🎓 Roman learning phase: {self.roman_detections}/10 detections")
-            return ['top_left', 'top_right', 'bottom_center', 'top_center', 'bottom_left', 'bottom_right']
+            return ['top_left', 'top_right', 'bottom_center', 'top_center', 'middle_left', 'middle_right', 'bottom_left', 'bottom_right']
         
         elif expected_number_type == 'arabic' and not self.arabic_learned:
             if self.logger:
                 self.logger.debug(f"🎓 Arabic learning phase: {self.arabic_detections}/10 detections")
-            return ['bottom_center', 'top_center', 'top_left', 'top_right', 'bottom_left', 'bottom_right']
+            return ['bottom_center', 'top_center', 'middle_right', 'middle_left', 'top_left', 'top_right', 'bottom_left', 'bottom_right']
         
         elif not self.roman_learned and not self.arabic_learned:
             if self.logger:
                 self.logger.debug(f"🎓 General learning phase: Roman {self.roman_detections}/10, Arabic {self.arabic_detections}/10")
-            return ['bottom_center', 'top_center', 'top_left', 'top_right', 'bottom_left', 'bottom_right']
+            return ['bottom_center', 'top_center', 'middle_right', 'middle_left', 'top_left', 'top_right', 'bottom_left', 'bottom_right']
         
         # Sort by confidence (highest first)
         sorted_locations = sorted(

@@ -41,6 +41,20 @@ class PaddleNumberDetector:
         try:
             import os
             import sys
+            
+            # ★ CRITICAL: Create .version file if missing (fixes EXE error)
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+                paddlex_version_file = os.path.join(base_path, 'paddlex', '.version')
+                if not os.path.exists(paddlex_version_file):
+                    # Create the .version file with a default version
+                    try:
+                        os.makedirs(os.path.dirname(paddlex_version_file), exist_ok=True)
+                        with open(paddlex_version_file, 'w') as f:
+                            f.write('3.0.0')  # Default version
+                    except:
+                        pass  # Ignore if we can't create it
+            
             from paddleocr import PaddleOCR
             
             # Set PaddleX home directory for EXE builds  
@@ -161,6 +175,7 @@ class PaddleNumberDetector:
         # CRITICAL: Larger regions capture complete page numbers (vi, vii, viii, etc.)
         corner_size = 300  # Increased from 200 to 300 pixels
         center_width = 400  # Increased from 300 to 400 pixels
+        middle_height = 300  # Height for middle edge regions
         
         corners = {
             'top_left': (0, 0, corner_size, corner_size),
@@ -171,7 +186,12 @@ class PaddleNumberDetector:
             'bottom_center': (width//2 - center_width//2, height - corner_size, 
                             width//2 + center_width//2, height),
             'top_center': (width//2 - center_width//2, 0, 
-                          width//2 + center_width//2, corner_size)
+                          width//2 + center_width//2, corner_size),
+            # NEW: Add middle edge positions (for edge-middle page numbers)
+            'middle_left': (0, height//2 - middle_height//2, 
+                          corner_size, height//2 + middle_height//2),
+            'middle_right': (width - corner_size, height//2 - middle_height//2,
+                           width, height//2 + middle_height//2)
         }
         
         # INTELLIGENT SCAN ORDER: Use AI learning for optimal speed!
