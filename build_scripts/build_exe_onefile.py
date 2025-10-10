@@ -12,6 +12,7 @@ One-File EXE Builder - Creates single PageAutomation.exe file (OPTIMIZED)
 import os
 import sys
 import subprocess
+import shutil
 from pathlib import Path
 
 def prepare_models():
