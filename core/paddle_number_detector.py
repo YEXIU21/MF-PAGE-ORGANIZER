@@ -28,14 +28,19 @@ class PaddleNumberDetector:
     _initialized = False
     
     def __init__(self, logger=None, lang='en'):
-        if PaddleNumberDetector._initialized:
-            return
-        
         self.logger = logger
         self.lang = lang
         
         # Initialize BRILLIANT AI Pattern Learning (YOUR VISION!)
         self.ai_learning = AIPatternLearning(logger)
+        
+        # ★ CRITICAL: Use singleton pattern to prevent PDX reinitialization
+        if PaddleNumberDetector._initialized:
+            # Already initialized - reuse existing OCR instance
+            self.ocr = PaddleNumberDetector._ocr_instance
+            if self.logger:
+                self.logger.debug("♻️  Reusing existing PaddleOCR instance (singleton)")
+            return
         
         # Initialize PaddleOCR with fallback (singleton pattern)
         try:
