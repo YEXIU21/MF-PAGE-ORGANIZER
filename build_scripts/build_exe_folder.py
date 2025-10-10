@@ -107,8 +107,7 @@ def main():
         '--exclude-module=torchvision', 
         '--exclude-module=tensorflow',
         '--exclude-module=jax',
-        '--exclude-module=scipy.sparse.csgraph._validation',
-        '--exclude-module=scipy.spatial.ckdtree',
+        # Note: Be careful with scipy exclusions - only exclude specific submodules
         '--exclude-module=torch.distributed',
         '--exclude-module=torch.nn',
         '--exclude-module=torch.optim',
