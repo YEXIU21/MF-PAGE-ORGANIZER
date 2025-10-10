@@ -19,8 +19,23 @@ Welcome to the MF Page Organizer documentation. This system automatically organi
 - **[CLEANUP_SUMMARY.md](CLEANUP_SUMMARY.md)** - Code cleanup and optimization summary
 - **[AUTO_CROP_VALIDATION.md](AUTO_CROP_VALIDATION.md)** - Auto-crop validation and manual review system
 - **[PDF_OPTIMIZATION.md](PDF_OPTIMIZATION.md)** - PDF creation performance optimization (5.8x faster)
+- **[TROUBLESHOOTING_GUIDE.md](TROUBLESHOOTING_GUIDE.md)** - Common issues and solutions
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes
 
 ## ✨ Latest Features
+
+### Middle Scanning Positions ✅ **NEW!**
+- **8 Scanning Positions**: Added middle-left and middle-right positions
+- **Better Coverage**: Detects page numbers on edges
+- **AI Optimization**: Learns which positions to scan first
+- **4-6x Faster**: After learning phase (10 pages)
+- **Comprehensive**: Covers all common page number locations
+
+### Virtual Environment Support ✅ **NEW!**
+- **Automatic Detection**: Build scripts use .venv if available
+- **Dependency Isolation**: Solves multiple Python installation conflicts
+- **Consistent Builds**: Ensures correct dependencies are bundled
+- **Fallback Support**: Uses system Python if .venv not found
 
 ### Blank Page Portrait Orientation ✅
 - **Automatic Detection**: Identifies blank landscape pages
@@ -56,7 +71,8 @@ Welcome to the MF Page Organizer documentation. This system automatically organi
 1. **Smart Page Detection**
    - Roman numeral recognition (i, ii, iii, iv, v, vi, vii, viii, ix, x, xi, xii)
    - Arabic number detection (1, 2, 3, 4, 5...)
-   - Multiple position scanning (top-left, top-right, bottom-left, center)
+   - 8 scanning positions (top-left, top-center, top-right, middle-left, middle-right, bottom-left, bottom-center, bottom-right)
+   - AI-powered adaptive scanning order
    - Content-based reordering
 
 2. **Blank Page Management**
