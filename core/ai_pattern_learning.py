@@ -3,18 +3,18 @@ AI Pattern Learning System - Adaptive Page Number Detection
 Learns from previous pages to speed up detection on subsequent pages
 """
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 import time
 
 @dataclass
 class LocationPattern:
-    """Tracks where page numbers are found"""
-    location: str  # 'top_left', 'top_right', 'bottom_left', 'bottom_right'
+    """Tracks success rate for each corner location"""
+    location: str
     success_count: int = 0
     total_attempts: int = 0
     last_found_page: int = 0
     confidence: float = 0.0
+    consecutive_failures: int = 0  # Track consecutive failures
     
     def update_success(self, page_num: int):
         """Update when page number found at this location"""
@@ -22,11 +22,18 @@ class LocationPattern:
         self.total_attempts += 1
         self.last_found_page = page_num
         self.confidence = self.success_count / self.total_attempts
+        self.consecutive_failures = 0  # Reset on success
     
     def update_failure(self):
         """Update when page number NOT found at this location"""
         self.total_attempts += 1
         self.confidence = self.success_count / self.total_attempts if self.total_attempts > 0 else 0.0
+        self.consecutive_failures += 1
+        
+        # ADAPTIVE: If many consecutive failures, reduce confidence
+        # This helps when page numbers move to different positions
+        if self.consecutive_failures > 10 and self.confidence > 0.3:
+            self.confidence *= 0.95  # Gradual confidence decay
 
 @dataclass
 class NumberTypePattern:
