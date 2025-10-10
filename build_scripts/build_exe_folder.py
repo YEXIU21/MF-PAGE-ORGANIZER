@@ -173,7 +173,13 @@ def main():
         '--hidden-import=cv2',
         
         # OCR and PDF
-        '--hidden-import=paddleocr.paddleocr',  # Specific paddleocr only
+        '--hidden-import=paddleocr',
+        '--hidden-import=paddleocr.paddleocr',
+        '--hidden-import=paddleocr.tools',
+        '--hidden-import=paddleocr.tools.infer',
+        '--hidden-import=paddlex',
+        '--hidden-import=paddlex.inference',
+        '--hidden-import=paddle',
         '--hidden-import=numpy',
         '--hidden-import=img2pdf',
         '--hidden-import=pikepdf'
