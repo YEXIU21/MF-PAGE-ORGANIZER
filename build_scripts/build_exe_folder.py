@@ -141,17 +141,24 @@ def main():
         '--hidden-import=core.preprocessor', 
         '--hidden-import=core.ocr_engine',
         '--hidden-import=core.numbering_system',
-        '--hidden-import=core.reordering_engine',
-        '--hidden-import=core.output_handler',
+        '--hidden-import=core.output_manager',
         '--hidden-import=core.paddle_ocr_engine',
         '--hidden-import=core.paddle_number_detector',
+        '--hidden-import=core.ai_learning',
+        '--hidden-import=core.ai_pattern_learning',
+        '--hidden-import=core.blank_page_detector',
+        '--hidden-import=core.confidence_system',
+        '--hidden-import=core.content_analyzer',
+        '--hidden-import=core.crop_validator',
+        '--hidden-import=core.interactive_cropper',
+        '--hidden-import=core.performance_optimizer',
+        '--hidden-import=core.smart_cache',
         
         # Utility modules (CRITICAL FOR FUNCTIONALITY)
         '--hidden-import=utils',
         '--hidden-import=utils.config',
         '--hidden-import=utils.logger',
-        '--hidden-import=utils.file_utils',
-        '--hidden-import=utils.image_utils',
+        '--hidden-import=utils.memory',
         
         # Standard library
         '--hidden-import=threading',
