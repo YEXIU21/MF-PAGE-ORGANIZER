@@ -31,6 +31,13 @@ class PaddleNumberDetector:
         self.logger = logger
         self.lang = lang
         
+        # ★ ALWAYS print to console for debugging (even without logger)
+        print("=" * 60)
+        print("🔧 PaddleNumberDetector.__init__() called")
+        print(f"   Logger: {self.logger}")
+        print(f"   _initialized: {PaddleNumberDetector._initialized}")
+        print("=" * 60)
+        
         if self.logger:
             self.logger.info("🔧 PaddleNumberDetector.__init__() called")
         
@@ -41,10 +48,12 @@ class PaddleNumberDetector:
         if PaddleNumberDetector._initialized:
             # Already initialized - reuse existing OCR instance
             self.ocr = PaddleNumberDetector._ocr_instance
+            print(f"♻️  Reusing existing PaddleOCR instance: {self.ocr}")
             if self.logger:
                 self.logger.info(f"♻️  Reusing existing PaddleOCR instance (singleton): {self.ocr}")
             return
         
+        print("🚀 First initialization - creating new PaddleOCR instance...")
         if self.logger:
             self.logger.info("🚀 First initialization - creating new PaddleOCR instance...")
         
@@ -66,9 +75,13 @@ class PaddleNumberDetector:
                     except:
                         pass  # Ignore if we can't create it
             
+            print("📦 Attempting to import PaddleOCR...")
             if self.logger:
                 self.logger.info("📦 Attempting to import PaddleOCR...")
+            
             from paddleocr import PaddleOCR
+            
+            print(f"✅ PaddleOCR imported successfully: {PaddleOCR}")
             if self.logger:
                 self.logger.info(f"✅ PaddleOCR imported successfully: {PaddleOCR}")
             
@@ -121,17 +134,24 @@ class PaddleNumberDetector:
             
             # Initialize PaddleOCR 3.2+ (simplified API)
             if not PaddleNumberDetector._initialized:
+                print("📝 About to call PaddleOCR()...")
                 if self.logger:
                     self.logger.info("📝 About to call PaddleOCR()...")
+                
                 self.ocr = PaddleOCR()
+                
+                print(f"✅ PaddleOCR() returned: {self.ocr}")
                 if self.logger:
                     self.logger.info(f"✅ PaddleOCR() returned: {self.ocr}")
+                    
                 # Store as singleton
                 PaddleNumberDetector._ocr_instance = self.ocr
                 PaddleNumberDetector._initialized = True
+                print(f"✅ Singleton stored: _initialized={PaddleNumberDetector._initialized}")
             else:
                 # Reuse existing instance
                 self.ocr = PaddleNumberDetector._ocr_instance
+                print(f"♻️  Using cached instance: {self.ocr}")
             
             if self.logger:
                 gpu_status = "GPU" if self._check_gpu() else "CPU"
