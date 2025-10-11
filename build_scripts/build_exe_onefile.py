@@ -16,12 +16,16 @@ import shutil
 from pathlib import Path
 
 def prepare_models():
-    """Copy PaddleOCR models for bundling"""
-    print("📦 Preparing PaddleOCR models...")
+    """Copy PaddleOCR and PaddleX models for bundling"""
+    print("📦 Preparing PaddleOCR and PaddleX models...")
     
+    # Check both .paddleocr and .paddlex directories
+    paddleocr_dir = Path.home() / '.paddleocr'
     paddlex_dir = Path.home() / '.paddlex'
-    if not paddlex_dir.exists():
-        print("⚠️  No PaddleOCR models found. They will download on first use.")
+    
+    if not paddleocr_dir.exists() and not paddlex_dir.exists():
+        print("⚠️  No models found. Run download_ocr_models.py first!")
+        print("⚠️  Models will download on first use (may fail in EXE).")
         return None
     
     build_dir = Path(__file__).parent
@@ -33,16 +37,35 @@ def prepare_models():
     
     # Copy model files (skip problematic cache/git files)
     model_count = 0
-    for src_file in paddlex_dir.rglob('*'):
-        if src_file.is_file():
-            skip_patterns = ['.git', '.cache', '__pycache__', '.tmp', '.pyc']
-            if any(pattern in str(src_file) for pattern in skip_patterns):
-                continue
-            
-            rel_path = src_file.relative_to(paddlex_dir)
-            dest_file = models_dir / rel_path
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_file, dest_file)
+    skip_patterns = ['.git', '.cache', '__pycache__', '.tmp', '.pyc', '.lock']
+    
+    # Copy PaddleOCR models (CRITICAL for OCR functionality)
+    if paddleocr_dir.exists():
+        print("  Copying PaddleOCR models...")
+        for src_file in paddleocr_dir.rglob('*'):
+            if src_file.is_file():
+                if any(pattern in str(src_file) for pattern in skip_patterns):
+                    continue
+                
+                rel_path = src_file.relative_to(paddleocr_dir.parent)
+                dest_file = models_dir / rel_path
+                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_file, dest_file)
+                model_count += 1
+    
+    # Copy PaddleX models
+    if paddlex_dir.exists():
+        print("  Copying PaddleX models...")
+        for src_file in paddlex_dir.rglob('*'):
+            if src_file.is_file():
+                if any(pattern in str(src_file) for pattern in skip_patterns):
+                    continue
+                
+                rel_path = src_file.relative_to(paddlex_dir.parent)
+                dest_file = models_dir / rel_path
+                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_file, dest_file)
+                model_count += 1
     
     print(f"✓ Prepared {model_count} model files")
     return models_dir
