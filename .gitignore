@@ -40,6 +40,7 @@ cache/
 *.log
 *.pkl
 zzzzzzzzzzz_infinity
+.zzz_screenshots
 zzz_screenshots
 # OS
 .DS_Store
