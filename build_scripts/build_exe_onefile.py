@@ -291,4 +291,17 @@ def main():
         return False
 
 if __name__ == '__main__':
+    # Auto-restart with Python 3.12 if running with wrong version
+    if sys.version_info[:2] != (3, 12):
+        print(f"⚠️  Wrong Python version detected: {sys.version}")
+        print("🔄 Restarting with Python 3.12...")
+        try:
+            import subprocess
+            result = subprocess.run(['py', '-3.12', __file__], check=True)
+            sys.exit(result.returncode)
+        except Exception as e:
+            print(f"❌ Failed to restart with Python 3.12: {e}")
+            print("Please run manually with: py -3.12 build_scripts\\build_exe_onefile.py")
+            sys.exit(1)
+    
     main()
