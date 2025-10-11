@@ -71,6 +71,11 @@ def prepare_models():
     return models_dir
 
 def main():
+    # Diagnostic: Show which Python is executing this script
+    print(f"🐍 Script running with: {sys.executable}")
+    print(f"🐍 Python version: {sys.version}")
+    print()
+    
     print("=" * 70)
     print("MF PAGE ORGANIZER - ONE-FILE BUILD (OPTIMIZED)")
     print("=" * 70)
