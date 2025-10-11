@@ -82,15 +82,10 @@ def main():
     build_dir = Path(__file__).parent
     root_dir = build_dir.parent
     
-    # ★ CRITICAL: Use .venv Python if available (ensures correct dependencies)
-    venv_python = root_dir / '.venv' / 'Scripts' / 'python.exe'
-    if venv_python.exists():
-        python_exe = str(venv_python)
-        print(f"✅ Using virtual environment: {python_exe}")
-    else:
-        python_exe = sys.executable
-        print(f"⚠️  Using system Python: {python_exe}")
-        print("   Recommendation: Create .venv for better dependency management")
+    # ★ Use system Python (with all dependencies installed)
+    python_exe = sys.executable
+    print(f"✅ Using system Python: {python_exe}")
+    print("   Ensure all dependencies are installed in system Python")
     # Clean old builds
     print("[1/5] Cleaning old builds...")
     for cleanup in ['build', 'dist']:
