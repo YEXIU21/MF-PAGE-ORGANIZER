@@ -165,6 +165,8 @@ def main():
         f'--add-data={root_dir / "utils"}{os.pathsep}utils',
         f'--add-data={root_dir / "config.json"}{os.pathsep}.',
         f'--add-data={root_dir / "PageAutomationic.png"}{os.pathsep}.',
+        f'--add-data={root_dir / "main.py"}{os.pathsep}.',              # ← Main CLI module
+        f'--add-data={root_dir / "splash_screen.py"}{os.pathsep}.',    # ← Splash screen
     ]
     
     # Add models if available
@@ -173,6 +175,10 @@ def main():
     
     # ★ COMPLETE imports for GUI functionality
     essential_imports = [
+        # Main entry points (CRITICAL!)
+        '--hidden-import=main',              # ← CRITICAL: Main CLI module
+        '--hidden-import=splash_screen',     # ← Splash screen module
+        
         # GUI and UI
         '--hidden-import=tkinter',
         '--hidden-import=tkinter.ttk',
