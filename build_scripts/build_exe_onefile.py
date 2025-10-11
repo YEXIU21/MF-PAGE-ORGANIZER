@@ -82,10 +82,19 @@ def main():
     build_dir = Path(__file__).parent
     root_dir = build_dir.parent
     
-    # ★ Use system Python (with all dependencies installed)
-    python_exe = sys.executable
-    print(f"✅ Using system Python: {python_exe}")
-    print("   Ensure all dependencies are installed in system Python")
+    # ★ Use Python 3.12 specifically (compatibility with all packages)
+    import subprocess as sp
+    try:
+        # Try to find Python 3.12 path using py launcher
+        result = sp.run(['py', '-3.12', '-c', 'import sys; print(sys.executable)'], 
+                       capture_output=True, text=True, check=True)
+        python_exe = result.stdout.strip()
+        print(f"✅ Using Python 3.12: {python_exe}")
+    except:
+        # Fallback to sys.executable
+        python_exe = sys.executable
+        print(f"⚠️  Using system Python: {python_exe}")
+        print("   Recommendation: Install Python 3.12 for best compatibility")
     # Clean old builds
     print("[1/5] Cleaning old builds...")
     for cleanup in ['build', 'dist']:
