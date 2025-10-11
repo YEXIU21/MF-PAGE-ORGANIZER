@@ -139,7 +139,7 @@ def main():
         python_exe, '-m', 'PyInstaller',
         '--name=PageAutomationOneFile',
         '--onefile',  # ★ Single file
-        '--windowed',
+        # '--windowed',  # ★ DISABLED FOR DEBUGGING - Shows console with error messages
         f'--icon={icon_dst}',
         '--clean',
         '--noconfirm',
