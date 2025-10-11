@@ -208,9 +208,11 @@ def main():
         '--collect-data=paddleocr',
         '--collect-data=paddlex',
         '--collect-data=paddle',
-        '--collect-binaries=paddleocr',  # ← CRITICAL: DLL files
-        '--collect-binaries=paddlex',    # ← CRITICAL: DLL files
-        '--collect-binaries=paddle',     # ← CRITICAL: DLL files
+        '--collect-binaries=paddleocr',  # ← CRITICAL: PaddleOCR DLL files
+        '--collect-binaries=paddlex',    # ← CRITICAL: PaddleX DLL files
+        '--collect-binaries=paddle',     # ← CRITICAL: Paddle DLL files
+        '--collect-binaries=cv2',        # ← CRITICAL: OpenCV DLL files (required by PaddleOCR)
+        '--collect-binaries=numpy',      # ← CRITICAL: NumPy binary files
         '--collect-submodules=paddleocr',
         '--collect-submodules=paddlex',
         str(root_dir / 'gui_mf.py')
