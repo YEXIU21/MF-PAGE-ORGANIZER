@@ -2,11 +2,16 @@
 """
 One-File EXE Builder - Creates single PageAutomation.exe file (OPTIMIZED)
 ✅ Maximum portability (single file)
-✅ Full PaddleOCR support with bundled models
+✅ Full PaddleOCR 3.2+ support with PaddleX[ocr] dependencies
 ✅ Professional icon
 ✅ PREVENTS 5.60GB bloat by excluding unnecessary packages
 ✅ Expected size: ~500MB-1GB instead of 5.60GB
 ✅ Roman numeral detection (vi, vii, viii, ix, x, xi, xii)
+✅ Python 3.12 compatible
+
+REQUIREMENTS:
+- Python 3.12+ recommended
+- paddlex[ocr]>=3.0.0 (for PaddleOCR 3.2+ pipeline support)
 """
 
 import os
@@ -54,6 +59,20 @@ def main():
     print("🎯 PREventS 5.60GB bloat by excluding unnecessary packages")
     print("📊 Expected size: ~500MB-1GB (NOT 5.60GB)")
     print("✅ Maximum portability - run from anywhere")
+    print()
+    
+    # Check Python version (Python 3.12+ recommended)
+    py_version = sys.version_info
+    print(f"🐍 Python Version: {py_version.major}.{py_version.minor}.{py_version.micro}")
+    if py_version < (3, 12):
+        print("⚠️  WARNING: Python 3.12+ is recommended for best compatibility")
+        print("   Current version may work but is not tested")
+        response = input("Continue anyway? (y/N): ").strip().lower()
+        if response != 'y':
+            print("Build cancelled. Please use Python 3.12+")
+            return False
+    else:
+        print("✅ Python version is compatible")
     print()
     
     build_dir = Path(__file__).parent
@@ -190,9 +209,16 @@ def main():
         '--hidden-import=paddleocr.paddleocr',
         '--hidden-import=paddleocr.tools',
         '--hidden-import=paddleocr.tools.infer',
+        '--hidden-import=paddleocr._pipelines',
+        '--hidden-import=paddleocr._pipelines.base',
+        '--hidden-import=paddleocr._pipelines.ocr',
         '--hidden-import=paddlex',
         '--hidden-import=paddlex.inference',
+        '--hidden-import=paddlex.inference.pipelines',
+        '--hidden-import=paddlex.utils',
+        '--hidden-import=paddlex.utils.deps',
         '--hidden-import=paddle',
+        '--hidden-import=paddle.inference',
         '--hidden-import=numpy',
         '--hidden-import=img2pdf',
         '--hidden-import=pikepdf'
