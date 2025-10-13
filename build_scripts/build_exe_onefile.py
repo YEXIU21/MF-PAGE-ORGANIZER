@@ -229,13 +229,17 @@ def main():
     # REMOVED: '--collect-all=paddle' (this causes the 5.60GB issue)
     # REMOVED: '--collect-all=paddleocr' (this pulls in too much)
     
-    # ★ CRITICAL: Collect data files for paddle ecosystem
+    # ★ CRITICAL: Collect data files for paddle ecosystem + Cython
     cmd.extend([
         '--collect-data=paddleocr',
         '--collect-data=paddlex',
         '--collect-data=paddle',
+        '--collect-data=Cython',  # ★ CRITICAL: Bundle Cython utility files (fixes CppSupport.cpp error)
         '--collect-submodules=paddleocr',
         '--collect-submodules=paddlex',
+        '--hidden-import=Cython',
+        '--hidden-import=Cython.Compiler',
+        '--hidden-import=Cython.Build',
         str(root_dir / 'gui_mf.py')
     ])
     

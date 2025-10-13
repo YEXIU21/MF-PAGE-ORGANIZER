@@ -41,7 +41,7 @@ class AILearningSystem:
                 'total_documents': 0,
                 'total_pages': 0,
                 'total_time_seconds': 0,
-                'average_time_per_page': 0
+                'average_time_per_page': 5.0  # Default: 5 seconds per page (reasonable estimate)
             },
             'feature_usage': {
                 'preprocessing': 0,
