@@ -41,6 +41,7 @@ cache/
 *.pkl
 zzzzzzzzzzz_infinity
 zzz_screenshots
+.zzz_prompt
 # OS
 .DS_Store
 Thumbs.db
