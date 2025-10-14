@@ -442,7 +442,7 @@ class PageReorderCLI:
         critical_deps = {
             'paddleocr': 'PaddleOCR',
             'paddlex': 'PaddleX',
-            'paddlepaddle': 'PaddlePaddle',
+            'paddle': 'PaddlePaddle',  # Imports as 'paddle', not 'paddlepaddle'
             'cv2': 'OpenCV',
             'PIL': 'Pillow',
             'numpy': 'NumPy',
