@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 """
-One-File EXE Builder - Creates single PageAutomation.exe file (OPTIMIZED)
-✅ Maximum portability (single file)
-✅ Full PaddleOCR 3.2+ support with PaddleX[ocr] dependencies
-✅ Professional icon
-✅ PREVENTS 5.60GB bloat by excluding unnecessary packages
-✅ Expected size: ~500MB-1GB instead of 5.60GB
-✅ Roman numeral detection (vi, vii, viii, ix, x, xi, xii)
-✅ Python 3.12 compatible
-
-REQUIREMENTS:
-- Python 3.12+ recommended
-- paddlex[ocr]>=3.0.0 (for PaddleOCR 3.2+ pipeline support)
+ONE-FILE EXE BUILDER - MF PAGE ORGANIZER
+Creates standalone PageAutomationOneFile.exe with all dependencies bundled
+✅ Full PaddleOCR + PaddleX[ocr] support
+✅ Runtime hook to bypass dependency checks  
+✅ Professional icon and metadata
+✅ Optimized size (~500MB-1GB)
 """
 
 import os
@@ -20,13 +14,87 @@ import subprocess
 import shutil
 from pathlib import Path
 
+def create_runtime_hook():
+    """Create runtime hook to patch paddlex dependency checker"""
+    hook_content = '''"""
+Runtime hook for PaddleX - Patches dependency checker for frozen builds
+"""
+import sys
+
+if getattr(sys, 'frozen', False):
+    import os
+    
+    # Set PaddleX home to bundled models
+    base_path = sys._MEIPASS
+    paddlex_home = os.path.join(base_path, '.paddlex')
+    if os.path.exists(paddlex_home):
+        os.environ['PADDLEX_HOME'] = paddlex_home
+        print(f"[Runtime Hook] Set PADDLEX_HOME to: {paddlex_home}")
+    
+    # Create .version file if missing
+    version_file = os.path.join(paddlex_home, '.version')
+    if not os.path.exists(version_file):
+        try:
+            os.makedirs(paddlex_home, exist_ok=True)
+            with open(version_file, 'w') as f:
+                f.write('3.0.0')
+            print(f"[Runtime Hook] Created .version file")
+        except Exception as e:
+            print(f"[Runtime Hook] Warning: Could not create .version file: {e}")
+    
+    # Pre-check paddlex[ocr] dependencies
+    print("[Runtime Hook] Pre-checking paddlex[ocr] dependencies...")
+    required_deps = [
+        'einops', 'ftfy', 'imagesize', 'jinja2', 'lxml',
+        'openpyxl', 'premailer', 'pypdfium2', 'regex',
+        'sklearn', 'tiktoken', 'tokenizers'
+    ]
+    
+    missing = []
+    for dep in required_deps:
+        try:
+            __import__(dep)
+        except ImportError:
+            missing.append(dep)
+    
+    if missing:
+        print(f"[Runtime Hook] WARNING: Missing dependencies: {', '.join(missing)}")
+    else:
+        print("[Runtime Hook] All paddlex[ocr] dependencies found ✓")
+    
+    # ★ CRITICAL: Patch paddlex.utils.deps.require_extra to bypass checks
+    print("[Runtime Hook] Patching paddlex.utils.deps.require_extra...")
+    try:
+        from paddlex.utils import deps
+        
+        _original_require_extra = deps.require_extra
+        
+        def patched_require_extra(package_name, extra_name, obj_name=None, alt=None, **kwargs):
+            """Patched version - bypasses OCR extra checks in frozen builds"""
+            if extra_name and 'ocr' in str(extra_name).lower():
+                return  # Skip check - deps are bundled
+            return _original_require_extra(package_name, extra_name, obj_name=obj_name, alt=alt, **kwargs)
+        
+        deps.require_extra = patched_require_extra
+        print("[Runtime Hook] Successfully patched paddlex.utils.deps.require_extra ✓")
+        
+    except Exception as e:
+        print(f"[Runtime Hook] Warning: Could not patch paddlex deps: {e}")
+'''
+    
+    build_dir = Path(__file__).parent
+    hook_file = build_dir / 'runtime-hook-paddlex.py'
+    hook_file.write_text(hook_content)
+    print(f"✓ Created runtime hook: {hook_file}")
+    return hook_file
+
 def prepare_models():
     """Copy PaddleOCR models for bundling"""
     print("📦 Preparing PaddleOCR models...")
     
     paddlex_dir = Path.home() / '.paddlex'
     if not paddlex_dir.exists():
-        print("⚠️  No PaddleOCR models found. They will download on first use.")
+        print("⚠️  No models found. They will download on first use.")
         return None
     
     build_dir = Path(__file__).parent
@@ -36,59 +104,40 @@ def prepare_models():
         shutil.rmtree(models_dir)
     models_dir.mkdir()
     
-    # Copy model files (skip problematic cache/git files)
+    # Copy model files
     model_count = 0
     for src_file in paddlex_dir.rglob('*'):
         if src_file.is_file():
-            skip_patterns = ['.git', '.cache', '__pycache__', '.tmp', '.pyc']
-            if any(pattern in str(src_file) for pattern in skip_patterns):
+            # Skip cache/git files
+            if any(p in str(src_file) for p in ['.git', '.cache', '__pycache__', '.tmp', '.pyc']):
                 continue
             
             rel_path = src_file.relative_to(paddlex_dir)
             dest_file = models_dir / rel_path
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_file, dest_file)
+            model_count += 1
     
     print(f"✓ Prepared {model_count} model files")
     return models_dir
 
 def main():
     print("=" * 70)
-    print("MF PAGE ORGANIZER - ONE-FILE BUILD (OPTIMIZED)")
+    print("MF PAGE ORGANIZER - ONE-FILE BUILD")
     print("=" * 70)
-    print("🎯 PREventS 5.60GB bloat by excluding unnecessary packages")
-    print("📊 Expected size: ~500MB-1GB (NOT 5.60GB)")
-    print("✅ Maximum portability - run from anywhere")
-    print()
-    
-    # Check Python version (Python 3.12+ recommended)
-    py_version = sys.version_info
-    print(f"🐍 Python Version: {py_version.major}.{py_version.minor}.{py_version.micro}")
-    if py_version < (3, 12):
-        print("⚠️  WARNING: Python 3.12+ is recommended for best compatibility")
-        print("   Current version may work but is not tested")
-        response = input("Continue anyway? (y/N): ").strip().lower()
-        if response != 'y':
-            print("Build cancelled. Please use Python 3.12+")
-            return False
-    else:
-        print("✅ Python version is compatible")
+    print("📦 Creating standalone executable with ALL dependencies bundled")
+    print("🎯 Expected size: ~500MB-1GB")
     print()
     
     build_dir = Path(__file__).parent
     root_dir = build_dir.parent
     
-    # ★ CRITICAL: Use .venv Python if available (ensures correct dependencies)
-    venv_python = root_dir / '.venv' / 'Scripts' / 'python.exe'
-    if venv_python.exists():
-        python_exe = str(venv_python)
-        print(f"✅ Using virtual environment: {python_exe}")
-    else:
-        python_exe = sys.executable
-        print(f"⚠️  Using system Python: {python_exe}")
-        print("   Recommendation: Create .venv for better dependency management")
+    # Use system Python (not venv)
+    python_exe = sys.executable
+    print(f"🐍 Python: {python_exe}")
+    
     # Clean old builds
-    print("[1/5] Cleaning old builds...")
+    print("\n[1/6] Cleaning old builds...")
     for cleanup in ['build', 'dist']:
         cleanup_path = build_dir / cleanup
         if cleanup_path.exists():
@@ -96,7 +145,7 @@ def main():
     print("✓ Clean")
     
     # Create icon
-    print("\n[2/5] Creating icon...")
+    print("\n[2/6] Creating icon...")
     try:
         from PIL import Image
         icon_src = root_dir / 'PageAutomationic.png'
@@ -108,44 +157,40 @@ def main():
         print(f"✗ Icon failed: {e}")
         return False
     
+    # Create runtime hook
+    print("\n[3/6] Creating runtime hook...")
+    runtime_hook = create_runtime_hook()
+    
     # Prepare models
-    print("\n[3/5] Preparing models...")
+    print("\n[4/6] Preparing models...")
     models_dir = prepare_models()
     
     # Install PyInstaller
-    print("\n[4/5] Installing PyInstaller...")
+    print("\n[5/6] Installing PyInstaller...")
     subprocess.run([python_exe, '-m', 'pip', 'install', 'pyinstaller', '--quiet'])
     print("✓ PyInstaller ready")
     
-    # Build with OPTIMIZATION to prevent 5.60GB bloat
-    print("\n[5/5] Building OPTIMIZED ONE-FILE EXE...")
-    print("🎯 Excluding bloated packages to prevent 5.60GB issue...")
-    print("⏳ This takes 15-20 minutes - please wait...")
+    # Build ONE-FILE EXE
+    print("\n[6/6] Building ONE-FILE EXE...")
+    print("⏳ This takes 15-20 minutes...")
     
     cmd = [
         python_exe, '-m', 'PyInstaller',
         '--name=PageAutomationOneFile',
         '--onefile',  # ★ Single file
-        # '--windowed',  # ★ DISABLED: Show console for debugging
+        # '--windowed',  # Commented out for debugging
         f'--icon={icon_dst}',
         '--clean',
         '--noconfirm',
-        '--noupx',  # ★ CRITICAL: Disable UPX to prevent interpreter corruption
-        '--runtime-tmpdir=.',  # ★ CRITICAL: Use current dir for temp extraction
-        f'--additional-hooks-dir={build_dir}',
+        '--noupx',
+        '--runtime-tmpdir=.',
+        f'--runtime-hook={runtime_hook}',  # ★ CRITICAL: Patch paddlex deps
         
-        # ★ CRITICAL: Exclude bloated packages that cause 5.60GB builds
+        # Exclude bloated packages
         '--exclude-module=torch',
-        '--exclude-module=torchvision', 
+        '--exclude-module=torchvision',
         '--exclude-module=tensorflow',
         '--exclude-module=jax',
-        # Note: Be careful with scipy exclusions - only exclude specific submodules
-        '--exclude-module=torch.distributed',
-        '--exclude-module=torch.nn',
-        '--exclude-module=torch.optim',
-        '--exclude-module=torch.autograd',
-        '--exclude-module=torch.cuda',
-        '--exclude-module=torch.backends',
         
         # Data files
         f'--add-data={root_dir / "core"}{os.pathsep}core',
@@ -158,88 +203,90 @@ def main():
     if models_dir and models_dir.exists():
         cmd.append(f'--add-data={models_dir}{os.pathsep}.paddlex')
     
-    # ★ COMPLETE imports for GUI functionality
-    essential_imports = [
-        # GUI and UI
-        '--hidden-import=tkinter',
-        '--hidden-import=tkinter.ttk',
-        '--hidden-import=tkinter.filedialog',
-        '--hidden-import=tkinter.messagebox',
+    # ★ COMPLETE hidden imports
+    hidden_imports = [
+        # GUI
+        'tkinter', 'tkinter.ttk', 'tkinter.filedialog', 'tkinter.messagebox',
         
-        # Core application modules (CRITICAL FOR FUNCTIONALITY)
-        '--hidden-import=core',
-        '--hidden-import=core.input_handler',
-        '--hidden-import=core.preprocessor', 
-        '--hidden-import=core.ocr_engine',
-        '--hidden-import=core.numbering_system',
-        '--hidden-import=core.output_manager',
-        '--hidden-import=core.paddle_ocr_engine',
-        '--hidden-import=core.paddle_number_detector',
-        '--hidden-import=core.ai_learning',
-        '--hidden-import=core.ai_pattern_learning',
-        '--hidden-import=core.blank_page_detector',
-        '--hidden-import=core.confidence_system',
-        '--hidden-import=core.content_analyzer',
-        '--hidden-import=core.crop_validator',
-        '--hidden-import=core.interactive_cropper',
-        '--hidden-import=core.performance_optimizer',
-        '--hidden-import=core.smart_cache',
+        # Core modules
+        'core', 'core.input_handler', 'core.preprocessor', 'core.ocr_engine',
+        'core.numbering_system', 'core.output_manager', 'core.paddle_ocr_engine',
+        'core.paddle_number_detector', 'core.ai_learning', 'core.ai_pattern_learning',
+        'core.blank_page_detector', 'core.confidence_system', 'core.content_analyzer',
+        'core.crop_validator', 'core.interactive_cropper', 'core.performance_optimizer',
+        'core.smart_cache',
         
-        # Utility modules (CRITICAL FOR FUNCTIONALITY)
-        '--hidden-import=utils',
-        '--hidden-import=utils.config',
-        '--hidden-import=utils.logger',
-        '--hidden-import=utils.memory',
+        # Utils
+        'utils', 'utils.config', 'utils.logger', 'utils.memory',
         
         # Standard library
-        '--hidden-import=threading',
-        '--hidden-import=tempfile',
-        '--hidden-import=shutil',
-        '--hidden-import=pathlib',
-        '--hidden-import=json',
+        'threading', 'tempfile', 'shutil', 'pathlib', 'json',
+        'importlib.metadata', 'importlib.resources', 'pkg_resources',
         
         # Image processing
-        '--hidden-import=PIL',
-        '--hidden-import=PIL.Image', 
-        '--hidden-import=PIL.ImageTk',
-        '--hidden-import=cv2',
+        'PIL', 'PIL.Image', 'PIL.ImageTk', 'cv2',
         
         # OCR and PDF
-        '--hidden-import=paddleocr',
-        '--hidden-import=paddleocr.paddleocr',
-        '--hidden-import=paddleocr.tools',
-        '--hidden-import=paddleocr.tools.infer',
-        '--hidden-import=paddleocr._pipelines',
-        '--hidden-import=paddleocr._pipelines.base',
-        '--hidden-import=paddleocr._pipelines.ocr',
-        '--hidden-import=paddlex',
-        '--hidden-import=paddlex.inference',
-        '--hidden-import=paddlex.inference.pipelines',
-        '--hidden-import=paddlex.utils',
-        '--hidden-import=paddlex.utils.deps',
-        '--hidden-import=paddle',
-        '--hidden-import=paddle.inference',
-        '--hidden-import=numpy',
-        '--hidden-import=img2pdf',
-        '--hidden-import=pikepdf'
+        'paddleocr', 'paddleocr.paddleocr', 'paddleocr.tools', 'paddleocr.tools.infer',
+        'paddleocr._pipelines', 'paddleocr._pipelines.base', 'paddleocr._pipelines.ocr',
+        'paddlex', 'paddlex.inference', 'paddlex.inference.pipelines',
+        'paddlex.utils', 'paddlex.utils.deps', 'paddlex.inference.utils',
+        'paddle', 'paddle.inference',
+        'numpy', 'img2pdf', 'pikepdf',
+        
+        # ★ CRITICAL: paddlex[ocr] runtime dependencies
+        'einops', 'ftfy', 'imagesize', 'jinja2', 'lxml', 'openpyxl',
+        'premailer', 'pypdfium2', 'regex', 'sklearn', 'tiktoken', 'tokenizers',
+        
+        # Additional ecosystem
+        'yaml', 'yaml.loader', 'yaml.dumper',
+        'scipy', 'scipy.special', 'scipy.ndimage',
+        'Cython', 'Cython.Compiler', 'Cython.Build',
     ]
-    cmd.extend(essential_imports)
     
-    # ★ NO collect-all commands that cause bloat
-    # REMOVED: '--collect-all=paddle' (this causes the 5.60GB issue)
-    # REMOVED: '--collect-all=paddleocr' (this pulls in too much)
+    for imp in hidden_imports:
+        cmd.append(f'--hidden-import={imp}')
     
-    # ★ CRITICAL: Collect data files for paddle ecosystem + Cython
+    # ★ Collect data/binaries
     cmd.extend([
         '--collect-data=paddleocr',
         '--collect-data=paddlex',
         '--collect-data=paddle',
-        '--collect-data=Cython',  # ★ CRITICAL: Bundle Cython utility files (fixes CppSupport.cpp error)
+        '--collect-data=Cython',
+        '--collect-data=yaml',
+        '--collect-data=sklearn',
         '--collect-submodules=paddleocr',
         '--collect-submodules=paddlex',
-        '--hidden-import=Cython',
-        '--hidden-import=Cython.Compiler',
-        '--hidden-import=Cython.Build',
+        '--collect-all=einops',
+        '--collect-all=ftfy',
+        '--collect-all=lxml',
+        '--collect-all=openpyxl',
+        '--collect-all=pypdfium2',
+        '--collect-all=tiktoken',
+        '--collect-all=tokenizers',
+        
+        # ★ CRITICAL: Copy metadata for runtime checks
+        '--copy-metadata=paddlex',
+        '--copy-metadata=paddleocr',
+        '--copy-metadata=paddlepaddle',
+        '--copy-metadata=einops',
+        '--copy-metadata=ftfy',
+        '--copy-metadata=imagesize',
+        '--copy-metadata=jinja2',
+        '--copy-metadata=lxml',
+        '--copy-metadata=openpyxl',
+        '--copy-metadata=premailer',
+        '--copy-metadata=pypdfium2',
+        '--copy-metadata=regex',
+        '--copy-metadata=scikit-learn',
+        '--copy-metadata=tiktoken',
+        '--copy-metadata=tokenizers',
+        '--copy-metadata=numpy',
+        '--copy-metadata=opencv-contrib-python',
+        '--copy-metadata=pillow',
+        '--copy-metadata=pyyaml',
+        '--copy-metadata=scipy',
+        
         str(root_dir / 'gui_mf.py')
     ])
     
@@ -251,16 +298,15 @@ def main():
         print("=" * 60)
         
         exe_path = build_dir / 'dist' / 'PageAutomationOneFile.exe'
-        print(f"\n📄 Single EXE: {exe_path}")
+        print(f"\n📄 EXE: {exe_path}")
         
-        # Check file size with bloat warning
         if exe_path.exists():
             size_mb = exe_path.stat().st_size / (1024 * 1024)
-            print(f"📊 File Size: {size_mb:.1f} MB")
+            print(f"📊 Size: {size_mb:.1f} MB")
             
-            if size_mb > 2000:  # 2GB
-                print("⚠️  WARNING: File is still too large! Check for remaining bloated dependencies.")
-            elif size_mb > 1000:  # 1GB
+            if size_mb > 2000:
+                print("⚠️  File is too large! Check for bloated dependencies.")
+            elif size_mb > 1000:
                 print("⚠️  File is larger than expected but acceptable.")
             else:
                 print("✅ File size is reasonable!")
@@ -270,13 +316,7 @@ def main():
             else:
                 print("⚠️  No models bundled - will download on first use")
         
-        print(f"\n🎯 Perfect for:")
-        print("  • Email distribution")
-        print("  • USB deployment") 
-        print("  • Cloud sharing")
-        print("  • Portable operation")
-        
-        print(f"\n🚀 Test the EXE: Double-click {exe_path}")
+        print(f"\n🚀 Test: Double-click {exe_path}")
         print("=" * 60)
         return True
     else:
@@ -284,4 +324,5 @@ def main():
         return False
 
 if __name__ == '__main__':
-    main()
+    success = main()
+    sys.exit(0 if success else 1)
