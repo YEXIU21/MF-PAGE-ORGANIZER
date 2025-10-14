@@ -383,12 +383,15 @@ class PageReorderCLI:
             return False
     
     def _run_startup_diagnostics(self):
-        """Run comprehensive startup diagnostics"""
+        """Run comprehensive startup diagnostics - checks ALL dependencies"""
         import os
         
         self.logger.info("=" * 70)
-        self.logger.info("🔍 STARTUP DIAGNOSTICS")
+        self.logger.info("🔍 COMPREHENSIVE STARTUP DIAGNOSTICS")
         self.logger.info("=" * 70)
+        
+        errors = []
+        warnings = []
         
         # Check 1: Python version
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
@@ -415,13 +418,13 @@ class PageReorderCLI:
                 models_dir = Path(paddlex_path) / 'official_models'
                 if models_dir.exists():
                     models = [d.name for d in models_dir.iterdir() if d.is_dir()]
-                    self.logger.info(f"  Models: {', '.join(models)}")
+                    self.logger.info(f"  Models: {', '.join(models[:3])}...")
                 else:
-                    self.logger.warning(f"⚠ official_models directory not found!")
+                    warnings.append("official_models directory not found")
             else:
+                errors.append("PaddleX Models NOT FOUND - PaddleOCR will fail!")
                 self.logger.error(f"❌ PaddleX Models: NOT FOUND")
                 self.logger.error(f"  Expected: {paddlex_path}")
-                self.logger.error(f"  This will cause PaddleOCR to fail!")
         else:
             # Script mode - check user directory
             paddlex_path = Path.home() / '.paddlex'
@@ -429,35 +432,138 @@ class PageReorderCLI:
                 model_count = len([f for f in paddlex_path.rglob('*') if f.is_file()])
                 self.logger.info(f"✓ PaddleX Models: Found ({model_count} files)")
             else:
-                self.logger.warning(f"⚠ PaddleX Models: Not downloaded yet")
-                self.logger.warning(f"  Will download on first OCR use")
+                warnings.append("PaddleX Models not downloaded yet")
         
-        # Check 4: Core dependencies
+        self.logger.info("")
+        self.logger.info("📦 CHECKING CRITICAL DEPENDENCIES:")
+        self.logger.info("-" * 70)
+        
+        # Check 4: Core image processing libraries
+        critical_deps = {
+            'paddleocr': 'PaddleOCR',
+            'paddlex': 'PaddleX',
+            'paddlepaddle': 'PaddlePaddle',
+            'cv2': 'OpenCV',
+            'PIL': 'Pillow',
+            'numpy': 'NumPy',
+        }
+        
+        for module, name in critical_deps.items():
+            try:
+                __import__(module)
+                self.logger.info(f"✓ {name}")
+            except ImportError as e:
+                errors.append(f"{name} NOT INSTALLED")
+                self.logger.error(f"❌ {name}: NOT INSTALLED - {e}")
+        
+        # Check 5: PaddleX[ocr] extra dependencies
+        self.logger.info("")
+        self.logger.info("🔧 CHECKING PADDLEX[OCR] DEPENDENCIES:")
+        self.logger.info("-" * 70)
+        
+        ocr_deps = {
+            'einops': 'einops',
+            'ftfy': 'ftfy',
+            'imagesize': 'imagesize',
+            'jinja2': 'Jinja2',
+            'lxml': 'lxml',
+            'openpyxl': 'openpyxl',
+            'premailer': 'premailer',
+            'pypdfium2': 'pypdfium2',
+            'regex': 'regex',
+            'sklearn': 'scikit-learn',
+            'tiktoken': 'tiktoken',
+            'tokenizers': 'tokenizers',
+        }
+        
+        missing_ocr_deps = []
+        for module, name in ocr_deps.items():
+            try:
+                __import__(module)
+                self.logger.info(f"✓ {name}")
+            except ImportError:
+                missing_ocr_deps.append(name)
+                self.logger.error(f"❌ {name}: MISSING")
+        
+        if missing_ocr_deps:
+            errors.append(f"Missing {len(missing_ocr_deps)} paddlex[ocr] dependencies")
+        
+        # Check 6: PDF processing libraries
+        self.logger.info("")
+        self.logger.info("📄 CHECKING PDF LIBRARIES:")
+        self.logger.info("-" * 70)
+        
+        pdf_deps = {
+            'img2pdf': ('img2pdf', False),
+            'PyPDF2': ('PyPDF2', False),
+            'reportlab': ('reportlab', False),
+        }
+        
+        for module, (name, required) in pdf_deps.items():
+            try:
+                __import__(module)
+                self.logger.info(f"✓ {name}")
+            except ImportError:
+                if required:
+                    errors.append(f"{name} NOT INSTALLED")
+                    self.logger.error(f"❌ {name}: NOT INSTALLED")
+                else:
+                    warnings.append(f"{name} not installed (optional)")
+                    self.logger.warning(f"⚠ {name}: Not installed (slower PDF generation)")
+        
+        # Check 7: Additional processing libraries
+        self.logger.info("")
+        self.logger.info("🛠️ CHECKING PROCESSING LIBRARIES:")
+        self.logger.info("-" * 70)
+        
+        processing_deps = {
+            'scipy': 'SciPy',
+            'yaml': 'PyYAML',
+            'psutil': 'psutil',
+        }
+        
+        for module, name in processing_deps.items():
+            try:
+                __import__(module)
+                self.logger.info(f"✓ {name}")
+            except ImportError:
+                warnings.append(f"{name} not installed")
+                self.logger.warning(f"⚠ {name}: Not installed")
+        
+        # Check 8: Test PaddleOCR initialization
+        self.logger.info("")
+        self.logger.info("🧪 TESTING PADDLEOCR INITIALIZATION:")
+        self.logger.info("-" * 70)
+        
         try:
-            import paddleocr
-            self.logger.info(f"✓ PaddleOCR: Installed")
-        except ImportError:
-            self.logger.error(f"❌ PaddleOCR: NOT INSTALLED")
+            from paddleocr import PaddleOCR
+            # Try to create instance without actually using it
+            self.logger.info(f"✓ PaddleOCR class importable")
+            
+            # Check if paddlex dependency checker is working
+            try:
+                from paddlex.utils import deps
+                self.logger.info(f"✓ paddlex.utils.deps accessible")
+                
+                # Check if it's been patched (in frozen mode)
+                if is_frozen:
+                    if hasattr(deps, 'require_extra'):
+                        self.logger.info(f"✓ paddlex.utils.deps.require_extra available")
+                    else:
+                        warnings.append("paddlex.utils.deps.require_extra not found")
+            except ImportError as e:
+                errors.append(f"paddlex.utils.deps import failed: {e}")
+                self.logger.error(f"❌ paddlex.utils.deps: {e}")
+                
+        except Exception as e:
+            errors.append(f"PaddleOCR initialization test failed: {e}")
+            self.logger.error(f"❌ PaddleOCR initialization test failed: {e}")
         
-        try:
-            import cv2
-            self.logger.info(f"✓ OpenCV: Installed")
-        except ImportError:
-            self.logger.error(f"❌ OpenCV: NOT INSTALLED")
+        # Check 9: System resources
+        self.logger.info("")
+        self.logger.info("💻 SYSTEM RESOURCES:")
+        self.logger.info("-" * 70)
         
-        try:
-            import PIL
-            self.logger.info(f"✓ Pillow: Installed")
-        except ImportError:
-            self.logger.error(f"❌ Pillow: NOT INSTALLED")
-        
-        try:
-            import img2pdf
-            self.logger.info(f"✓ img2pdf: Installed (5.8x faster PDF)")
-        except ImportError:
-            self.logger.warning(f"⚠ img2pdf: Not installed (will use slower method)")
-        
-        # Check 5: System resources
         try:
             import psutil
             ram_gb = psutil.virtual_memory().total / (1024**3)
@@ -465,12 +571,39 @@ class PageReorderCLI:
             cpu_cores = psutil.cpu_count()
             self.logger.info(f"✓ System RAM: {ram_gb:.1f} GB ({available_ram_gb:.1f} GB available)")
             self.logger.info(f"✓ CPU Cores: {cpu_cores}")
+            
+            if available_ram_gb < 2:
+                warnings.append(f"Low available RAM ({available_ram_gb:.1f} GB)")
         except:
-            self.logger.warning(f"⚠ Could not detect system resources")
+            warnings.append("Could not detect system resources")
+        
+        # Final summary
+        self.logger.info("")
+        self.logger.info("=" * 70)
+        
+        if errors:
+            self.logger.error(f"❌ DIAGNOSTICS FAILED - {len(errors)} CRITICAL ERRORS:")
+            for error in errors:
+                self.logger.error(f"   • {error}")
+            self.logger.error("")
+            self.logger.error("⚠️  APPLICATION MAY NOT FUNCTION CORRECTLY!")
+            self.logger.error("   Please fix the errors above before processing.")
+        elif warnings:
+            self.logger.warning(f"⚠️  DIAGNOSTICS PASSED WITH {len(warnings)} WARNINGS:")
+            for warning in warnings:
+                self.logger.warning(f"   • {warning}")
+            self.logger.info("")
+            self.logger.info("✅ System ready - but some features may be limited")
+        else:
+            self.logger.info("✅ ALL DIAGNOSTICS PASSED - SYSTEM FULLY READY!")
         
         self.logger.info("=" * 70)
-        self.logger.info("✅ Diagnostics Complete - Ready to process!")
-        self.logger.info("=" * 70)
+        
+        # Pause if there are errors (give user time to read)
+        if errors and is_frozen:
+            import time
+            self.logger.error("\n⏸️  Pausing for 10 seconds - please review errors above...")
+            time.sleep(10)
 
 def create_argument_parser() -> argparse.ArgumentParser:
     """Create command line argument parser"""
