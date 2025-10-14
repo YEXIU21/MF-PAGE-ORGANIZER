@@ -69,11 +69,26 @@ if getattr(sys, 'frozen', False):
         
         _original_require_extra = deps.require_extra
         
-        def patched_require_extra(package_name, extra_name, obj_name=None, alt=None, **kwargs):
-            """Patched version - bypasses OCR extra checks in frozen builds"""
-            if extra_name and 'ocr' in str(extra_name).lower():
-                return  # Skip check - deps are bundled
-            return _original_require_extra(package_name, extra_name, obj_name=obj_name, alt=alt, **kwargs)
+        def patched_require_extra(package_name, extra_name=None, obj_name=None, alt=None, **kwargs):
+            """
+            Patched version - bypasses OCR extra checks in frozen builds.
+            Supports both decorator and direct call patterns.
+            """
+            # Check if this is for OCR extra
+            if extra_name is None or (extra_name and 'ocr' in str(extra_name).lower()):
+                # Return a no-op decorator or just return for direct calls
+                if extra_name is None:
+                    def decorator(func):
+                        return func
+                    return decorator
+                else:
+                    return
+            
+            # For non-OCR extras, use original function
+            if extra_name is None:
+                return _original_require_extra(package_name, **kwargs)
+            else:
+                return _original_require_extra(package_name, extra_name, obj_name=obj_name, alt=alt, **kwargs)
         
         deps.require_extra = patched_require_extra
         print("[Runtime Hook] Successfully patched paddlex.utils.deps.require_extra ✓")
