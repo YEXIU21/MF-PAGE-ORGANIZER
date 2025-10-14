@@ -84,7 +84,7 @@ if getattr(sys, 'frozen', False):
     
     build_dir = Path(__file__).parent
     hook_file = build_dir / 'runtime-hook-paddlex.py'
-    hook_file.write_text(hook_content)
+    hook_file.write_text(hook_content, encoding='utf-8')
     print(f"✓ Created runtime hook: {hook_file}")
     return hook_file
 
