@@ -502,6 +502,41 @@ class NumberingSystem:
                                             global_context: Dict[str, Any]) -> OrderingDecision:
         """Make ordering decision WITH full global context"""
         detected_numbers = ocr_result.detected_numbers
+        position = original_index + 1
+        
+        # ★ CRITICAL FIX: Contents Page Detection ★
+        # Contents pages have MANY page references that look like page numbers!
+        # We must detect and ignore them BEFORE trying to order by numbers
+        if detected_numbers and len(detected_numbers) >= 5:
+            # Has 5+ different numbers → likely Contents/TOC page!
+            unique_numbers = set(n.numeric_value for n in detected_numbers if n.numeric_value)
+            if len(unique_numbers) >= 5:
+                confidence = 0.99  # MAXIMUM - contents pages use scan order!
+                reasoning = f"📋 CONTENTS page detected ({len(unique_numbers)} page references) - using scan order"
+                self.logger.info(f"📋 {page.original_name}: CONTENTS PAGE at position {position} (ignoring {len(unique_numbers)} page references)")
+                return OrderingDecision(
+                    page_info=page,
+                    assigned_position=position,
+                    confidence=confidence,
+                    reasoning=reasoning,
+                    detected_numbers=[],  # Ignore page references!
+                    alternative_positions=[position]
+                )
+        
+        # ★ CRITICAL FIX: First 5 Positions ABSOLUTE Protection ★
+        # Pages 1-5 are front matter - NEVER move them, regardless of detected numbers!
+        if position <= 5:
+            confidence = 0.99  # MAXIMUM priority!
+            reasoning = f"🛡️ PROTECTED front matter (position {position}) - NEVER moves"
+            self.logger.info(f"🛡️ {page.original_name}: PROTECTED front matter at position {position}")
+            return OrderingDecision(
+                page_info=page,
+                assigned_position=position,
+                confidence=confidence,
+                reasoning=reasoning,
+                detected_numbers=[],  # Ignore any detected numbers!
+                alternative_positions=[position]
+            )
         
         if not detected_numbers or detected_numbers[0].confidence < 50.0:
             # No reliable number detected

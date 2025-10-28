@@ -3,6 +3,13 @@ PaddleOCR-Based Page Number Detector
 Ultra-fast, accurate corner-focused detection with PaddleOCR
 """
 
+# ★ CRITICAL: Set environment variables BEFORE any imports!
+# This prevents oneDNN parallel processing crashes
+import os
+os.environ['PADDLE_USE_ONEDNN'] = '0'  # Disable Intel oneDNN (fixes parallel crash)
+os.environ['OMP_NUM_THREADS'] = '1'     # Single-threaded OpenMP
+os.environ['PADDLE_ENABLE_INFERENCE_PROFILER'] = '0'  # Disable profiler
+
 import re
 import numpy as np
 from PIL import Image
@@ -32,12 +39,6 @@ class PaddleNumberDetector:
     def __init__(self, logger=None, lang='en'):
         self.logger = logger
         self.lang = lang
-        
-        # ★ CRITICAL FIX: Disable oneDNN to prevent parallel processing conflicts
-        import os
-        os.environ['PADDLE_USE_ONEDNN'] = '0'  # Disable Intel oneDNN (fixes parallel crash)
-        os.environ['OMP_NUM_THREADS'] = '1'     # Single-threaded OpenMP
-        os.environ['PADDLE_ENABLE_INFERENCE_PROFILER'] = '0'  # Disable profiler
         
         if self.logger:
             self.logger.info("🔧 PaddleNumberDetector.__init__() called")
@@ -161,7 +162,7 @@ class PaddleNumberDetector:
         except:
             return False
     
-    def detect_page_number(self, image: Image.Image, ocr_text: str, filename: str) -> Optional[NumberCandidate]:
+    def detect_page_number(self, image: Image.Image, ocr_text: str, filename: str, position: int = None) -> Optional[NumberCandidate]:
         """Main detection method - scans corners for page numbers"""
         if self.logger:
             self.logger.debug(f"PaddleOCR detector analyzing: {filename}")
@@ -176,7 +177,7 @@ class PaddleNumberDetector:
             return self._fallback_detection(filename)
         
         # Scan all 8 positions with intelligent type detection
-        candidates = self._scan_corners(image, filename)
+        candidates = self._scan_corners(image, filename, position)
         
         if self.logger:
             self.logger.debug(f"Found {len(candidates)} candidates")
@@ -192,34 +193,47 @@ class PaddleNumberDetector:
             self.logger.debug("No page number detected")
         return None
     
-    def _detect_expected_number_type(self, filename: str) -> Optional[str]:
-        """Detect expected number type from filename or page sequence"""
-        if not filename:
-            return None
+    def _detect_expected_number_type(self, position: int = None) -> Optional[str]:
+        """
+        SMART: Provide hints based on POSITION (not filename!)
+        This is just a performance optimization - we ALWAYS accept whatever we find!
         
-        # Extract page number from filename like "Page_006.jpg"
-        match = re.search(r'Page_(\d{3,4})', filename)
-        if match:
-            page_num = int(match.group(1))
-            # Front matter pages (1-12) typically use roman numerals
-            if 1 <= page_num <= 15:
-                return 'roman'
-            # Main content uses arabic
-            else:
-                return 'arabic'
-        
-        # Check AI learning history
+        Returns:
+            'roman' - Hint to scan roman positions first (but accept arabic if found)
+            'arabic' - Hint to scan arabic positions first (but accept roman if found)
+            None - No hint, scan all positions equally
+        """
+        # Check AI learning history FIRST (most reliable!)
         if self.ai_learning.dominant_type:
             return self.ai_learning.dominant_type
         
-        return None
+        # No position info - no hint
+        if position is None:
+            return None
+        
+        # ★ POSITION-BASED HINTS (NOT enforcement!) ★
+        # Positions 1-5: Front matter (title, copyright, contents)
+        # Could have roman "v", or no numbers - no hint
+        if position <= 5:
+            return None
+        
+        # Positions 6-16: Typical front matter continuation
+        # Usually roman numerals (vi, vii, viii... xv)
+        elif position <= 16:
+            return 'roman'  # Hint only - accept arabic if found!
+        
+        # Positions 17+: Main content
+        # Usually arabic numbers (1, 2, 3...)
+        else:
+            return 'arabic'  # Hint only - accept roman if found!
+
     
-    def _scan_corners(self, image: Image.Image, filename: str = "") -> List[NumberCandidate]:
+    def _scan_corners(self, image: Image.Image, filename: str = "", position: int = None) -> List[NumberCandidate]:
         """Scan all 4 corners for page numbers"""
         candidates = []
         
-        # SMART: Detect expected number type from context
-        expected_type = self._detect_expected_number_type(filename)
+        # SMART: Detect expected number type from POSITION (not filename!)
+        expected_type = self._detect_expected_number_type(position)
         
         # Convert to numpy
         img_array = np.array(image)

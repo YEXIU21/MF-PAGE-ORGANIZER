@@ -3,6 +3,13 @@ PaddleOCR-Based Embedded OCR Engine
 Ultra-fast, no external dependencies, works standalone
 """
 
+# ★ CRITICAL: Set environment variables BEFORE any imports!
+# This prevents oneDNN parallel processing crashes
+import os
+os.environ['PADDLE_USE_ONEDNN'] = '0'  # Disable Intel oneDNN (fixes parallel crash)
+os.environ['OMP_NUM_THREADS'] = '1'     # Single-threaded OpenMP
+os.environ['PADDLE_ENABLE_INFERENCE_PROFILER'] = '0'  # Disable profiler
+
 import cv2
 import numpy as np
 from PIL import Image
