@@ -392,7 +392,7 @@ class OCREngine:
                 # Pass position hint (page_number from PageInfo, or None)
                 position_hint = page_info.page_number if page_info.page_number > 0 else None
                 detected_candidate = self.paddle_detector.detect_page_number(
-                    image, full_text, page_info.original_name, position=position_hint)
+                    image, full_text, page_info.original_name, position=position_hint, total_pages=len(pages))
                 
                 if detected_candidate and detected_candidate.confidence > 70:
                     self._log_info(f"PaddleOCR found: {detected_candidate.text} "
