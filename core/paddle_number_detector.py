@@ -162,7 +162,7 @@ class PaddleNumberDetector:
         except:
             return False
     
-    def detect_page_number(self, image: Image.Image, ocr_text: str, filename: str, position: int = None) -> Optional[NumberCandidate]:
+    def detect_page_number(self, image: Image.Image, ocr_text: str, filename: str, position: int = None, total_pages: int = None) -> Optional[NumberCandidate]:
         """Main detection method - scans corners for page numbers"""
         if self.logger:
             self.logger.debug(f"PaddleOCR detector analyzing: {filename}")
@@ -185,9 +185,15 @@ class PaddleNumberDetector:
         # Return best candidate
         if candidates:
             best = max(candidates, key=lambda x: x.confidence)
+            
+            # ★ CRITICAL: Validate number to catch OCR errors
+            validated_best = self._validate_detected_number(best, total_pages)
+            
             if self.logger:
-                self.logger.info(f"Best: {best.text} (conf: {best.confidence:.1f}%, loc: {best.location})")
-            return best
+                if validated_best.number != best.number:
+                    self.logger.warning(f"📝 OCR CORRECTION: '{best.text}' (num={best.number}) → '{validated_best.text}' (num={validated_best.number})")
+                self.logger.info(f"Best: {validated_best.text} (conf: {validated_best.confidence:.1f}%, loc: {validated_best.location})")
+            return validated_best
         
         if self.logger:
             self.logger.debug("No page number detected")
@@ -296,6 +302,64 @@ class PaddleNumberDetector:
                 self.ai_learning.record_failure(corner_name)
         
         return candidates
+    
+    def _validate_detected_number(self, candidate: NumberCandidate, total_pages: int = None) -> NumberCandidate:
+        """
+        ★ CRITICAL FIX: Validate detected number to catch OCR errors
+        Example: OCR reads "50" but should be "4" or "5"
+        """
+        if candidate is None:
+            return candidate
+        
+        # Only validate arabic numbers (roman numerals are usually correct)
+        detected_text = candidate.text
+        
+        # Check if this is a roman numeral - don't validate these
+        if detected_text.lower() in ['i','ii','iii','iv','v','vi','vii','viii','ix','x','xi','xii','xiii','xiv','xv','xvi','xvii','xviii','xix','xx']:
+            return candidate  # Roman numerals are usually accurate
+        
+        # For arabic numbers, check if realistic
+        if total_pages is None:
+            total_pages = 100  # Conservative default
+        
+        max_realistic = total_pages * 3  # Allow 3x pages for safety
+        
+        # If number seems too large, likely OCR error
+        if candidate.number > max_realistic:
+            # Common OCR errors: "50" instead of "5" or "0"
+            # Try extracting single digits
+            num_str = str(candidate.number)
+            
+            if len(num_str) == 2:  # Two-digit number
+                first_digit = int(num_str[0])
+                second_digit = int(num_str[1])
+                
+                # Check which single digit makes more sense
+                if 1 <= first_digit <= total_pages:
+                    # First digit is realistic
+                    if self.logger:
+                        self.logger.warning(f"⚠️ OCR likely misread multi-digit as single: '{num_str}' → '{first_digit}'")
+                    return NumberCandidate(
+                        number=first_digit,
+                        text=str(first_digit),
+                        location=candidate.location,
+                        confidence=candidate.confidence * 0.8,  # Reduce confidence slightly
+                        reasoning=candidate.reasoning + [f"Corrected from '{num_str}' to '{first_digit}' (OCR validation)"]
+                    )
+                elif 1 <= second_digit <= total_pages:
+                    # Second digit is realistic
+                    if self.logger:
+                        self.logger.warning(f"⚠️ OCR likely misread multi-digit as single: '{num_str}' → '{second_digit}'")
+                    return NumberCandidate(
+                        number=second_digit,
+                        text=str(second_digit),
+                        location=candidate.location,
+                        confidence=candidate.confidence * 0.8,
+                        reasoning=candidate.reasoning + [f"Corrected from '{num_str}' to '{second_digit}' (OCR validation)"]
+                    )
+        
+        # Number seems valid, return as-is
+        return candidate
     
     def _fallback_detection(self, filename: str) -> Optional[NumberCandidate]:
         """Fallback detection using filename when PaddleOCR not available"""
