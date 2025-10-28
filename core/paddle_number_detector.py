@@ -322,7 +322,7 @@ class PaddleNumberDetector:
         if total_pages is None:
             total_pages = 100  # Conservative default
         
-        max_realistic = total_pages * 3  # Allow 3x pages for safety
+        max_realistic = total_pages * 1.5  # Allow 1.5x pages (was 3x - too generous!)
         
         # If number seems too large, likely OCR error
         if candidate.number > max_realistic:
