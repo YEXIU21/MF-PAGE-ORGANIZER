@@ -269,7 +269,7 @@ class OCREngine:
             # PRIORITY FIX: Use EXISTING paddle detector (already has API fix)
             # This prevents content numbers from polluting the results
             ai_candidate = self.paddle_detector.detect_page_number(
-                image, "", str(page_info.file_path)
+                image, "", str(page_info.file_path), total_pages=len(pages)
             )
             
             if self.logger:
