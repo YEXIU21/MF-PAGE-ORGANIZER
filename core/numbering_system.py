@@ -487,8 +487,8 @@ class NumberingSystem:
             'min_arabic_value': min_arabic_value if min_arabic_value != float('inf') else 0,
             'min_roman_value': min([p['value'] for p in roman_pages]) if roman_pages else 0,
             'unnumbered_front_matter': unnumbered_front_matter,
-            'roman_section_end': unnumbered_front_matter + roman_page_count,
-            'arabic_section_start': unnumbered_front_matter + roman_page_count + 1
+            'roman_section_end': max_roman_value if max_roman_value > 0 else unnumbered_front_matter + roman_page_count,
+            'arabic_section_start': max_roman_value + 1 if max_roman_value > 0 else unnumbered_front_matter + roman_page_count + 1
         }
         
         self.logger.info(f"📈 Roman section: positions 1-{context['roman_section_end']} (max value: {max_roman_value})")
@@ -507,13 +507,18 @@ class NumberingSystem:
             # No reliable number detected
             position = original_index + 1
             
-            # SMART: Blank pages and middle pages should stay in filename positions
-            # Pages 1-5: Front matter (title, blank, copyright, contents) - HIGH confidence
-            # Pages 6+: If no number detected, likely blank page - KEEP in original position
+            # CRITICAL: Front matter PROTECTION
+            # Pages 1-5: Title, copyright, contents - MAXIMUM protection (NEVER move!)
+            # Pages 6-15: Likely front matter continuation - HIGH protection
+            # Pages 16+: Blank pages - KEEP in place
             if position <= 5:
-                confidence = 0.9
-                reasoning = "No page number expected (title/front matter) - correct behavior"
-                self.logger.info(f"✅ {page.original_name}: Front matter at position {position}")
+                confidence = 0.99  # MAXIMUM priority - front matter NEVER moves!
+                reasoning = "Front matter (PROTECTED) - title/contents/copyright NEVER moves"
+                self.logger.info(f"🛡️ {page.original_name}: PROTECTED front matter at position {position}")
+            elif 6 <= position <= 15:
+                confidence = 0.95  # High confidence for front matter continuation
+                reasoning = "Front matter continuation - no number expected"
+                self.logger.info(f"✅ {page.original_name}: Front matter continuation at position {position}")
             elif position > 15:
                 # Middle/end pages without numbers are likely blank - MUST keep in place!
                 # Blank pages are intentional placeholders, give them HIGHEST confidence
@@ -575,13 +580,13 @@ class NumberingSystem:
         
         # Calculate position based on global context
         if number_type == 'roman':
-            # Roman numerals: offset by (value - min_value) to handle sequences like vi, vii, viii...
-            # Example: If min is vi (6), then vi→position 6, vii→position 7, etc.
-            min_roman = global_context['min_roman_value']
-            position = global_context['unnumbered_front_matter'] + (numeric_value - min_roman) + 1
+            # FIXED: Roman numerals are ABSOLUTE positions!
+            # If book has vi, vii, viii → they are pages 6, 7, 8 (NOT 1, 2, 3!)
+            # Books can start at ANY roman numeral (i, v, vi, etc.)
+            position = numeric_value  # Direct mapping: vi=6, vii=7, ix=9, etc.
             confidence = min(0.95, best_number.confidence / 100.0)
-            reasoning = f"Roman numeral '{best_number.text}' = {numeric_value} (offset from min {min_roman})"
-            self.logger.info(f"✅ {page.original_name}: Roman '{best_number.text}' → Position {position}")
+            reasoning = f"Roman numeral '{best_number.text}' = {numeric_value} (absolute position)"
+            self.logger.info(f"✅ {page.original_name}: Roman '{best_number.text}' → Position {position} (absolute)")
         else:
             # Arabic numbers are offset to come AFTER roman section
             position = global_context['arabic_section_start'] + numeric_value - 1
@@ -757,16 +762,11 @@ class NumberingSystem:
         resolved_roman = self._resolve_numbered_conflicts(roman_pages)
         resolved_arabic = self._resolve_numbered_conflicts(arabic_pages)
         
-        # STEP 3: Offset arabic numbers to come AFTER roman numbers
+        # STEP 3: Arabic numbers already have correct offsets from _make_ordering_decision_with_context
+        # No need to re-offset here (would cause double-offsetting)
         if resolved_roman and resolved_arabic:
             max_roman_pos = max(d.assigned_position for d in resolved_roman)
-            self.logger.info(f"🔄 Offsetting arabic numbers: max roman position = {max_roman_pos}")
-            
-            for decision in resolved_arabic:
-                old_pos = decision.assigned_position
-                decision.assigned_position = max_roman_pos + decision.assigned_position
-                decision.reasoning += f" (offset from {old_pos} to follow roman sequence)"
-                self.logger.info(f"📍 {decision.page_info.original_name}: Position {old_pos} → {decision.assigned_position}")
+            self.logger.info(f"✅ Arabic numbers already offset correctly (max roman position: {max_roman_pos})")
         
         # STEP 4: Combine all numbered pages
         all_numbered = resolved_roman + resolved_arabic

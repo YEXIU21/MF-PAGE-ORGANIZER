@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image
 from typing import List, Optional, Tuple
 from dataclasses import dataclass
+import threading
 from .ai_pattern_learning import AIPatternLearning
 
 @dataclass
@@ -26,10 +27,17 @@ class PaddleNumberDetector:
     # Class-level singleton to prevent reinitialization
     _ocr_instance = None
     _initialized = False
+    _lock = threading.Lock()  # Thread-safe initialization lock
     
     def __init__(self, logger=None, lang='en'):
         self.logger = logger
         self.lang = lang
+        
+        # ★ CRITICAL FIX: Disable oneDNN to prevent parallel processing conflicts
+        import os
+        os.environ['PADDLE_USE_ONEDNN'] = '0'  # Disable Intel oneDNN (fixes parallel crash)
+        os.environ['OMP_NUM_THREADS'] = '1'     # Single-threaded OpenMP
+        os.environ['PADDLE_ENABLE_INFERENCE_PROFILER'] = '0'  # Disable profiler
         
         if self.logger:
             self.logger.info("🔧 PaddleNumberDetector.__init__() called")
@@ -37,110 +45,113 @@ class PaddleNumberDetector:
         # Initialize BRILLIANT AI Pattern Learning (YOUR VISION!)
         self.ai_learning = AIPatternLearning(logger)
         
-        # ★ CRITICAL: Use singleton pattern to prevent PDX reinitialization
-        if PaddleNumberDetector._initialized:
-            # Already initialized - reuse existing OCR instance
-            self.ocr = PaddleNumberDetector._ocr_instance
+        # ★ CRITICAL: Thread-safe singleton pattern to prevent PDX reinitialization
+        with PaddleNumberDetector._lock:
+            if PaddleNumberDetector._initialized:
+                # Already initialized - reuse existing OCR instance
+                self.ocr = PaddleNumberDetector._ocr_instance
+                if self.logger:
+                    self.logger.info(f"♻️  Reusing existing PaddleOCR instance (singleton): {self.ocr}")
+                return
+            
             if self.logger:
-                self.logger.info(f"♻️  Reusing existing PaddleOCR instance (singleton): {self.ocr}")
-            return
-        
-        if self.logger:
-            self.logger.info("🚀 First initialization - creating new PaddleOCR instance...")
-        
-        # Initialize PaddleOCR with fallback (singleton pattern)
-        try:
-            import os
-            import sys
+                self.logger.info("🚀 First initialization - creating new PaddleOCR instance...")
             
-            # ★ CRITICAL: Create .version file if missing (fixes EXE error)
-            if getattr(sys, 'frozen', False):
-                base_path = sys._MEIPASS
-                paddlex_version_file = os.path.join(base_path, 'paddlex', '.version')
-                if not os.path.exists(paddlex_version_file):
-                    # Create the .version file with a default version
-                    try:
-                        os.makedirs(os.path.dirname(paddlex_version_file), exist_ok=True)
-                        with open(paddlex_version_file, 'w') as f:
-                            f.write('3.0.0')  # Default version
-                    except:
-                        pass  # Ignore if we can't create it
+            # Initialize PaddleOCR with fallback (singleton pattern)
+            try:
+                import sys
+                
+                # ★ CRITICAL: Create .version file if missing (fixes EXE error)
+                if getattr(sys, 'frozen', False):
+                    base_path = sys._MEIPASS
+                    paddlex_version_file = os.path.join(base_path, 'paddlex', '.version')
+                    if not os.path.exists(paddlex_version_file):
+                        # Create the .version file with a default version
+                        try:
+                            os.makedirs(os.path.dirname(paddlex_version_file), exist_ok=True)
+                            with open(paddlex_version_file, 'w') as f:
+                                f.write('3.0.0')  # Default version
+                        except:
+                            pass  # Ignore if we can't create it
+                
+                from paddleocr import PaddleOCR
             
-            from paddleocr import PaddleOCR
-            
-            # Set PaddleX home directory for EXE builds  
-            if getattr(sys, 'frozen', False):
-                # Running as EXE - check for bundled models first
-                base_path = sys._MEIPASS
-                
-                # Try multiple possible bundled model locations
-                bundled_paths = [
-                    os.path.join(base_path, '.paddlex'),
-                    os.path.join(base_path, '.paddleocr'), 
-                    os.path.join(base_path, 'paddleocr_models'),
-                    os.path.join(base_path, '_internal', '.paddlex'),
-                    os.path.join(base_path, '_internal', '.paddleocr')
-                ]
-                
-                models_found = False
-                for path in bundled_paths:
-                    if os.path.exists(path):
-                        os.environ['PADDLEX_HOME'] = path
-                        if self.logger:
-                            self.logger.info(f"Using bundled models: {path}")
-                        models_found = True
-                        break
-                
-                if not models_found:
-                    # No bundled models - check user's home directory
-                    from pathlib import Path
-                    user_paths = [
-                        Path.home() / '.paddlex',
-                        Path.home() / '.paddleocr'
+                # Set PaddleX home directory for EXE builds  
+                if getattr(sys, 'frozen', False):
+                    # Running as EXE - check for bundled models first
+                    base_path = sys._MEIPASS
+                    
+                    # Try multiple possible bundled model locations
+                    bundled_paths = [
+                        os.path.join(base_path, '.paddlex'),
+                        os.path.join(base_path, '.paddleocr'), 
+                        os.path.join(base_path, 'paddleocr_models'),
+                        os.path.join(base_path, '_internal', '.paddlex'),
+                        os.path.join(base_path, '_internal', '.paddleocr')
                     ]
                     
-                    for user_path in user_paths:
-                        if user_path.exists() and any(user_path.rglob('*.pdparams')):
-                            os.environ['PADDLEX_HOME'] = str(user_path)
+                    models_found = False
+                    for path in bundled_paths:
+                        if os.path.exists(path):
+                            os.environ['PADDLEX_HOME'] = path
                             if self.logger:
-                                self.logger.info(f"Using user models: {user_path}")
+                                self.logger.info(f"Using bundled models: {path}")
                             models_found = True
                             break
+                    
+                    if not models_found:
+                        # No bundled models - check user's home directory
+                        from pathlib import Path
+                        user_paths = [
+                            Path.home() / '.paddlex',
+                            Path.home() / '.paddleocr'
+                        ]
+                        
+                        for user_path in user_paths:
+                            if user_path.exists() and any(user_path.rglob('*.pdparams')):
+                                os.environ['PADDLEX_HOME'] = str(user_path)
+                                if self.logger:
+                                    self.logger.info(f"Using user models: {user_path}")
+                                models_found = True
+                                break
+                    
+                    if not models_found:
+                        if self.logger:
+                            self.logger.info("No models found - PaddleOCR will download automatically on first use")
+                        # Set a default path for model downloads
+                        from pathlib import Path
+                        default_path = Path.home() / '.paddlex'
+                        os.environ['PADDLEX_HOME'] = str(default_path)
                 
-                if not models_found:
-                    if self.logger:
-                        self.logger.info("No models found - PaddleOCR will download automatically on first use")
-                    # Set a default path for model downloads
-                    from pathlib import Path
-                    default_path = Path.home() / '.paddlex'
-                    os.environ['PADDLEX_HOME'] = str(default_path)
-            
-            # Initialize PaddleOCR 3.2+ (simplified API)
-            if not PaddleNumberDetector._initialized:
-                self.ocr = PaddleOCR()
-                # Store as singleton
-                PaddleNumberDetector._ocr_instance = self.ocr
-                PaddleNumberDetector._initialized = True
-            else:
-                # Reuse existing instance
-                self.ocr = PaddleNumberDetector._ocr_instance
-            
-            if self.logger:
-                gpu_status = "GPU" if self._check_gpu() else "CPU"
-                self.logger.info(f"PaddleOCR initialized successfully ({gpu_status})")
+                # Initialize PaddleOCR 3.2+ with recognition enabled
+                if not PaddleNumberDetector._initialized:
+                    self.ocr = PaddleOCR(
+                        # PaddleX PaddleOCR 3.2+ uses minimal parameters
+                        # Most parameters from older versions not supported
+                    )
+                    # Store as singleton
+                    PaddleNumberDetector._ocr_instance = self.ocr
+                    PaddleNumberDetector._initialized = True
+                else:
+                    # Reuse existing instance
+                    self.ocr = PaddleNumberDetector._ocr_instance
                 
-        except ImportError as e:
-            if self.logger:
-                self.logger.warning(f"PaddleOCR not installed: {e}")
-                self.logger.warning("Install with: pip install paddleocr")
-            self.ocr = None
-        except Exception as e:
-            if self.logger:
-                self.logger.error(f"Failed to initialize PaddleOCR: {e}")
-                # Log full traceback for debugging
-                import traceback
-                self.logger.error(f"Traceback: {traceback.format_exc()}")
-            self.ocr = None
+                if self.logger:
+                    gpu_status = "GPU" if self._check_gpu() else "CPU"
+                    self.logger.info(f"PaddleOCR initialized successfully ({gpu_status})")
+                    
+            except ImportError as e:
+                if self.logger:
+                    self.logger.warning(f"PaddleOCR not installed: {e}")
+                    self.logger.warning("Install with: pip install paddleocr")
+                self.ocr = None
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f"Failed to initialize PaddleOCR: {e}")
+                    # Log full traceback for debugging
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
+                self.ocr = None
     
     def _check_gpu(self) -> bool:
         """Check if GPU is available for PaddleOCR"""
@@ -164,8 +175,8 @@ class PaddleNumberDetector:
                 self.logger.warning("   Using filename fallback instead of OCR")
             return self._fallback_detection(filename)
         
-        # Scan all 4 corners
-        candidates = self._scan_corners(image)
+        # Scan all 8 positions with intelligent type detection
+        candidates = self._scan_corners(image, filename)
         
         if self.logger:
             self.logger.debug(f"Found {len(candidates)} candidates")
@@ -181,9 +192,34 @@ class PaddleNumberDetector:
             self.logger.debug("No page number detected")
         return None
     
-    def _scan_corners(self, image: Image.Image) -> List[NumberCandidate]:
+    def _detect_expected_number_type(self, filename: str) -> Optional[str]:
+        """Detect expected number type from filename or page sequence"""
+        if not filename:
+            return None
+        
+        # Extract page number from filename like "Page_006.jpg"
+        match = re.search(r'Page_(\d{3,4})', filename)
+        if match:
+            page_num = int(match.group(1))
+            # Front matter pages (1-12) typically use roman numerals
+            if 1 <= page_num <= 15:
+                return 'roman'
+            # Main content uses arabic
+            else:
+                return 'arabic'
+        
+        # Check AI learning history
+        if self.ai_learning.dominant_type:
+            return self.ai_learning.dominant_type
+        
+        return None
+    
+    def _scan_corners(self, image: Image.Image, filename: str = "") -> List[NumberCandidate]:
         """Scan all 4 corners for page numbers"""
         candidates = []
+        
+        # SMART: Detect expected number type from context
+        expected_type = self._detect_expected_number_type(filename)
         
         # Convert to numpy
         img_array = np.array(image)
@@ -212,11 +248,12 @@ class PaddleNumberDetector:
                            width, height//2 + middle_height//2)
         }
         
-        # INTELLIGENT SCAN ORDER: Use AI learning for optimal speed!
-        scan_order = self.ai_learning.get_scan_order()
+        # INTELLIGENT SCAN ORDER: Use AI learning with expected number type!
+        scan_order = self.ai_learning.get_scan_order(expected_number_type=expected_type)
         
         if self.logger:
-            self.logger.debug(f"🧠 AI scan order: {scan_order}")
+            expected_msg = f" (expecting {expected_type})" if expected_type else ""
+            self.logger.debug(f"🧠 AI scan order{expected_msg}: {scan_order}")
         
         for corner_name in scan_order:
             (x1, y1, x2, y2) = corners[corner_name]
@@ -308,26 +345,112 @@ class PaddleNumberDetector:
                 # Use PaddleOCR ocr API (compatible with latest version)
                 results = self.ocr.ocr(temp_path)
                 
+                # PaddleOCR processing (debug logs removed for cleaner output)
+                
                 if results and len(results) > 0 and results[0]:
-                    # PaddleOCR returns list of [[[x1,y1],[x2,y2],[x3,y3],[x4,y4]], (text, confidence)]
-                    for line in results[0]:
-                        bbox, (text, score) = line
-                        if text.strip():  # Skip empty text
-                            # Extract page numbers from text
-                            page_numbers = self._extract_numbers(text, corner_name, score * 100)
+                    result_obj = results[0]
+                    
+                    # PaddleX OCRResult is a dict-like object
+                    
+                    # Try to access as dictionary with common OCR result keys
+                    if isinstance(result_obj, dict) or hasattr(result_obj, 'get'):
+                        # Try multiple possible key names
+                        dt_polys = result_obj.get('dt_polys', result_obj.get('boxes', []))
+                        rec_texts = result_obj.get('rec_texts', result_obj.get('rec_text', result_obj.get('texts', [])))
+                        rec_scores = result_obj.get('rec_scores', result_obj.get('rec_score', result_obj.get('scores', [])))
+                        rec_boxes = result_obj.get('rec_boxes', [])
+                        
+                        # If rec_texts empty but rec_boxes has data, extract from rec_boxes
+                        if not rec_texts and rec_boxes:
+                            # rec_boxes might be: [[box_coords, text, score], ...] or other structure
+                            # Try to extract text from rec_boxes
+                            try:
+                                for box_data in rec_boxes:
+                                    if isinstance(box_data, (list, tuple)) and len(box_data) >= 2:
+                                        # Assume format: [bbox, text] or [bbox, text, score]
+                                        if len(box_data) == 2:
+                                            rec_texts.append(box_data[1])
+                                            rec_scores.append(1.0)  # Default score
+                                        elif len(box_data) >= 3:
+                                            rec_texts.append(box_data[1])
+                                            rec_scores.append(box_data[2])
+                                if rec_texts and self.logger:
+                                    self.logger.debug(f"✅ Extracted {len(rec_texts)} texts from rec_boxes")
+                            except Exception as e:
+                                if self.logger:
+                                    self.logger.debug(f"⚠️ Failed to extract from rec_boxes: {e}")
+                        
+                        # Iterate over detected text regions
+                        for i, (bbox, text, score) in enumerate(zip(dt_polys, rec_texts, rec_scores)):
                             
-                            for candidate in page_numbers:
-                                # Adjust bbox coordinates
-                                if bbox and len(bbox) >= 4:
-                                    x_coords = [point[0] for point in bbox]
-                                    y_coords = [point[1] for point in bbox]
-                                    x_min = int(min(x_coords)) + offset_x
-                                    y_min = int(min(y_coords)) + offset_y
-                                    x_max = int(max(x_coords)) + offset_x
-                                    y_max = int(max(y_coords)) + offset_y
-                                    candidate.bbox = (x_min, y_min, x_max, y_max)
+
+                            if text and str(text).strip():  # Skip empty text
+                                # Extract page numbers from text
+                                page_numbers = self._extract_numbers(str(text), corner_name, float(score) * 100)
                                 
-                                candidates.append(candidate)
+                                for candidate in page_numbers:
+                                    # Adjust bbox coordinates if available
+                                    if bbox is not None and len(bbox) >= 4:
+                                        x_coords = [point[0] for point in bbox]
+                                        y_coords = [point[1] for point in bbox]
+                                        x_min = int(min(x_coords)) + offset_x
+                                        y_min = int(min(y_coords)) + offset_y
+                                        x_max = int(max(x_coords)) + offset_x
+                                        y_max = int(max(y_coords)) + offset_y
+                                        candidate.bbox = (x_min, y_min, x_max, y_max)
+                                    
+                                    candidates.append(candidate)
+                                    if self.logger:
+                                        self.logger.debug(f"✅ {corner_name}: Found '{text}' → {candidate.number} (conf: {float(score)*100:.1f}%)")
+                        
+                        # Skip fallback if we processed dict successfully
+                        if dt_polys or rec_texts or rec_scores:
+                            pass  # Already processed above
+                    else:
+                        # Fallback to old iteration method
+                        if self.logger:
+                            self.logger.warning(f"⚠️ OCRResult doesn't have expected attributes, using fallback")
+                        for line in results[0]:
+                            # Handle both old and new PaddleOCR formats
+                            bbox = None
+                            text = None
+                            score = 0.0
+                            
+                            try:
+                                if len(line) == 2:
+                                    bbox, text_info = line
+                                    # text_info can be: tuple (text, score) or list [text, score]
+                                    if isinstance(text_info, (tuple, list)) and len(text_info) >= 2:
+                                        text, score = text_info[0], text_info[1]
+                                    else:
+                                        if self.logger:
+                                            self.logger.debug(f"⚠️ Unexpected text_info format: {type(text_info)}, {text_info}")
+                                        continue
+                                else:
+                                    if self.logger:
+                                        self.logger.debug(f"⚠️ Unexpected line length: {len(line)}")
+                                    continue
+                            except Exception as e:
+                                if self.logger:
+                                    self.logger.error(f"❌ Failed to parse PaddleOCR result: {e}")
+                                continue
+                            
+                            if text and str(text).strip():  # Skip empty text
+                                # Extract page numbers from text
+                                page_numbers = self._extract_numbers(text, corner_name, score * 100)
+                                
+                                for candidate in page_numbers:
+                                    # Adjust bbox coordinates
+                                    if bbox is not None and len(bbox) >= 4:
+                                        x_coords = [point[0] for point in bbox]
+                                        y_coords = [point[1] for point in bbox]
+                                        x_min = int(min(x_coords)) + offset_x
+                                        y_min = int(min(y_coords)) + offset_y
+                                        x_max = int(max(x_coords)) + offset_x
+                                        y_max = int(max(y_coords)) + offset_y
+                                        candidate.bbox = (x_min, y_min, x_max, y_max)
+                                    
+                                    candidates.append(candidate)
                                 if self.logger:
                                     self.logger.debug(f"✅ {corner_name}: Found '{text}' → {candidate.number} (conf: {score*100:.1f}%)")
                 
@@ -374,10 +497,22 @@ class PaddleNumberDetector:
                 confidence = ocr_confidence * 100 * 0.9  # Base confidence
                 reasoning = [f"Arabic in {location}"]
                 
-                # Boost confidence based on location
-                if 'top' in location:
+                # SMART: Penalize suspiciously high numbers in non-standard positions
+                if num_value > 200 and location not in ['top_left', 'top_right', 'top_center', 'bottom_center']:
+                    confidence *= 0.4  # Likely ISBN/reference, not page number
+                    reasoning.append("High number in unusual position (likely reference)")
+                
+                # BOOST: Standard page number positions
+                if location in ['top_left', 'top_right']:
+                    confidence += 25
+                    reasoning.append("Standard page number position")
+                elif location in ['top_center', 'bottom_center']:
+                    confidence += 15
+                    reasoning.append("Common page number position")
+                elif 'top' in location:
                     confidence += 10
                     reasoning.append("Top corner")
+                
                 if 'right' in location:
                     confidence += 5
                     reasoning.append("Right side")
@@ -437,6 +572,14 @@ class PaddleNumberDetector:
             # Calculate confidence
             confidence = ocr_confidence * 100 * 0.95
             reasoning = [f"Roman '{roman_text}' in {location}"]
+            
+            # BOOST: Roman numerals in front matter standard positions
+            if location in ['top_left', 'top_right']:
+                confidence += 30
+                reasoning.append("Front matter standard position")
+            elif location in ['top_center']:
+                confidence += 20
+                reasoning.append("Common front matter position")
             
             # Boost confidence for longer roman numerals (more reliable)
             if len(roman_text) >= 3:

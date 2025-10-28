@@ -505,7 +505,22 @@ class MFPageOrganizerApp:
             self.log_message("❌ Processing cancelled by user")
     
     def process_pages(self):
-        """Process pages in background"""
+        """Process pages in background thread with comprehensive error handling"""
+        try:
+            # SAFETY: Wrap entire processing in try-except to prevent GUI crash
+            self._process_pages_internal()
+        except Exception as e:
+            # Catch ALL exceptions to prevent thread death
+            import traceback
+            error_details = f"{str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+            self.root.after(0, self.processing_error, error_details)
+        except BaseException as e:
+            # Catch system exits and severe errors
+            error_details = f"Critical error: {str(e)}"
+            self.root.after(0, self.processing_error, error_details)
+    
+    def _process_pages_internal(self):
+        """Internal processing method"""
         try:
             # Configure settings based on user choices
             if self.enhance_var.get():
@@ -639,7 +654,9 @@ class MFPageOrganizerApp:
                 sys.stdout = original_stdout
                 
         except Exception as e:
-            self.root.after(0, self.processing_error, str(e))
+            import traceback
+            error_details = f"{str(e)}\n\nFull error:\n{traceback.format_exc()}"
+            self.root.after(0, self.processing_error, error_details)
     
     def processing_complete(self, success, output_path):
         """Handle processing completion"""

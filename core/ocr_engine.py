@@ -14,6 +14,8 @@ from PIL import Image
 import tempfile
 import subprocess
 from dataclasses import dataclass
+import cv2
+import numpy as np
 
 from utils.config import config
 from utils.logger import ProcessLogger
