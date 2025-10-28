@@ -270,8 +270,9 @@ class OutputManager:
                 convert_to_300dpi = self.config.get('output.convert_to_300dpi', True)
                 
                 extension = f'.{output_format}'
-                # Use 5-digit padding for page numbers (00001, 00002, etc.)
-                ordered_filename = f"{file_prefix}_{decision.assigned_position:05d}{extension}"
+                # ★ FIX: Use sequential OUTPUT position (i+1), NOT detected page number!
+                # This ensures output files are always: 00001, 00002, 00003... (sequential)
+                ordered_filename = f"{file_prefix}_{i+1:05d}{extension}"
                 
                 # Save image
                 image_path = images_dir / ordered_filename

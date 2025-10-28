@@ -474,6 +474,10 @@ class NumberingSystem:
         # Example: Roman pages vi, vii, viii, ix, x, xi, xii = 7 pages (not 12!)
         roman_page_count = len(roman_pages)
         
+        # ★ CRITICAL FIX: Use COUNT of front matter pages, not max roman value!
+        # This prevents false high roman numerals (e.g., "L"=50) from breaking arabic offset
+        actual_front_matter_count = unnumbered_front_matter + roman_page_count
+        
         context = {
             'total_pages': len(pages),
             'roman_pages': roman_pages,
@@ -487,8 +491,8 @@ class NumberingSystem:
             'min_arabic_value': min_arabic_value if min_arabic_value != float('inf') else 0,
             'min_roman_value': min([p['value'] for p in roman_pages]) if roman_pages else 0,
             'unnumbered_front_matter': unnumbered_front_matter,
-            'roman_section_end': max_roman_value if max_roman_value > 0 else unnumbered_front_matter + roman_page_count,
-            'arabic_section_start': max_roman_value + 1 if max_roman_value > 0 else unnumbered_front_matter + roman_page_count + 1
+            'roman_section_end': max_roman_value if max_roman_value > 0 else actual_front_matter_count,
+            'arabic_section_start': actual_front_matter_count + 1  # Use COUNT, not max value!
         }
         
         self.logger.info(f"📈 Roman section: positions 1-{context['roman_section_end']} (max value: {max_roman_value})")
