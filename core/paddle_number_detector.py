@@ -31,6 +31,19 @@ class NumberCandidate:
 class PaddleNumberDetector:
     """Advanced page number detector using PaddleOCR with AI learning"""
     
+    # ★ ENTERPRISE: Position-based confidence weighting
+    # Page numbers are most commonly in corners, rarely in middle
+    REGION_PRIORITY = {
+        'top_right': 1.0,      # Most common for page numbers
+        'bottom_center': 0.95, # Very common for academic books
+        'top_left': 0.9,       # Common alternate position
+        'bottom_right': 0.85,  # Common for technical books
+        'bottom_left': 0.85,   # Common for alternate layouts
+        'top_center': 0.6,     # Often headers, less likely page numbers
+        'middle_right': 0.4,   # Usually margin notes or content
+        'middle_left': 0.3,    # Usually content or references
+    }
+    
     # Class-level singleton to prevent reinitialization
     _ocr_instance = None
     _initialized = False
@@ -181,6 +194,16 @@ class PaddleNumberDetector:
         
         if self.logger:
             self.logger.debug(f"Found {len(candidates)} candidates")
+        
+        # ★ ENTERPRISE: Apply position-based confidence weighting
+        if candidates:
+            for candidate in candidates:
+                position_weight = self.REGION_PRIORITY.get(candidate.location, 0.5)
+                original_conf = candidate.confidence
+                candidate.confidence = candidate.confidence * position_weight
+                
+                if self.logger and position_weight < 1.0:
+                    self.logger.debug(f"Position weighting: {candidate.location} {original_conf:.1f}% → {candidate.confidence:.1f}%")
         
         # Return best candidate
         if candidates:
