@@ -192,7 +192,7 @@ class OCREngine:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 # Submit all tasks
                 future_to_index = {
-                    executor.submit(self.process_page, page): i 
+                    executor.submit(self.process_page, page, len(pages)): i 
                     for i, page in enumerate(pages)
                 }
                 
@@ -237,11 +237,11 @@ class OCREngine:
                     
                 if self.logger:
                     self.logger.progress("OCR Processing", i + 1, len(pages))
-                result = self.process_page(page)
+                result = self.process_page(page, len(pages))
                 results.append(result)
             return results
     
-    def process_page(self, page_info: PageInfo) -> OCRResult:
+    def process_page(self, page_info: PageInfo, total_pages: int = None) -> OCRResult:
         """Process a page with OCR and number detection"""
         import time
         start_time = time.time()
