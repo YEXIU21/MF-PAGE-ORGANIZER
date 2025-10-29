@@ -12,6 +12,7 @@ os.environ['PADDLE_ENABLE_INFERENCE_PROFILER'] = '0'  # Disable profiler
 
 import re
 import numpy as np
+import cv2
 from PIL import Image
 from typing import List, Optional, Tuple
 from dataclasses import dataclass
