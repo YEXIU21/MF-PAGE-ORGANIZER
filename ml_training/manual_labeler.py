@@ -94,12 +94,18 @@ class ManualLabeler:
         if img is None:
             return
         
-        # Resize for display if too large
-        max_display_width = 1200
+        # Resize for display to fit screen (max 1000x1400 to fit most screens)
+        max_display_width = 1000
+        max_display_height = 1400
         h, w = display.shape[:2]
-        if w > max_display_width:
-            scale = max_display_width / w
-            new_h, new_w = int(h * scale), int(w * scale)
+        
+        # Calculate scale to fit both width and height
+        scale_w = max_display_width / w if w > max_display_width else 1.0
+        scale_h = max_display_height / h if h > max_display_height else 1.0
+        scale = min(scale_w, scale_h)
+        
+        if scale < 1.0:
+            new_w, new_h = int(w * scale), int(h * scale)
             display = cv2.resize(display, (new_w, new_h))
         
         cv2.imshow('Page Image - Press ESC to skip, any other key to label', display)
