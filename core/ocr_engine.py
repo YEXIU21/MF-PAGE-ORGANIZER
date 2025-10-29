@@ -24,13 +24,6 @@ from core.input_handler import PageInfo
 from core.paddle_number_detector import PaddleNumberDetector
 from core.paddle_ocr_engine import PaddleOCREngine
 
-# ML Model Integration
-try:
-    from core.model_manager import get_model_manager
-    ML_MODEL_AVAILABLE = True
-except ImportError:
-    ML_MODEL_AVAILABLE = False
-
 @dataclass
 class DetectedNumber:
     """Information about detected numbers on a page"""
@@ -89,20 +82,6 @@ class OCREngine:
         
         # Keep embedded OCR as fallback
         self.embedded_ocr = self.paddle_ocr
-        
-        # Initialize ML Model Manager (if available)
-        self.ml_model = None
-        if ML_MODEL_AVAILABLE:
-            try:
-                model_manager = get_model_manager()
-                if model_manager.model_exists():
-                    model_manager.load_model()
-                    self.ml_model = model_manager.get_predictor()
-                    if self.logger and self.ml_model:
-                        self.logger.info("✅ ML model loaded - ultra-fast mode enabled!")
-            except Exception as e:
-                if self.logger:
-                    self.logger.debug(f"ML model not available: {e}")
         
         # Check for bundled Tesseract or system Tesseract
         self._initialize_tesseract()
@@ -281,75 +260,11 @@ class OCREngine:
             # Load image
             image = Image.open(page_info.file_path)
             
-            # LAYER 1: TRY ML MODEL FIRST (if available) - ULTRA FAST!
-            ml_result = None
-            if self.ml_model:
-                if self.logger:
-                    self.logger.debug(f"🤖 Trying ML model for {page_info.original_name}")
-                
-                # Extract corner regions for ML prediction
-                img_array = np.array(image)
-                h, w = img_array.shape[:2]
-                
-                # Try main corners (where page numbers usually are)
-                corners_to_try = [
-                    ('bottom_right', img_array[h-200:h, w-200:w]),
-                    ('bottom_left', img_array[h-200:h, 0:200]),
-                    ('top_right', img_array[0:200, w-200:w]),
-                    ('bottom_center', img_array[h-200:h, w//2-100:w//2+100]),
-                ]
-                
-                for corner_name, corner_img in corners_to_try:
-                    if corner_img.size > 0:
-                        try:
-                            predicted_number, confidence = self.ml_model.predict(corner_img)
-                            
-                            if predicted_number and confidence > 0.80:  # High confidence!
-                                if self.logger:
-                                    self.logger.info(f"✨ ML MODEL SUCCESS: '{predicted_number}' (confidence: {confidence:.1%}) at {corner_name}")
-                                
-                                # Convert to numeric value
-                                try:
-                                    numeric_value = int(predicted_number) if predicted_number.isdigit() else None
-                                except:
-                                    numeric_value = None
-                                
-                                # Determine number type
-                                number_type = 'roman' if self._is_roman_numeral(predicted_number) else 'arabic'
-                                
-                                # Create result
-                                detected_numbers = [DetectedNumber(
-                                    text=predicted_number,
-                                    number_type=number_type,
-                                    numeric_value=numeric_value,
-                                    confidence=confidence * 100,
-                                    position=(0, 0, 100, 30),
-                                    context=f"ML Model: {corner_name}"
-                                )]
-                                
-                                ml_result = OCRResult(
-                                    page_info=page_info,
-                                    full_text="",
-                                    detected_numbers=detected_numbers,
-                                    text_blocks=[],
-                                    language_confidence=confidence,
-                                    processing_time=time.time() - start_time
-                                )
-                                
-                                # Save to cache and return immediately!
-                                self.smart_cache.save_result(image_hash, ml_result, 'ocr_v20_ml', ml_result.processing_time)
-                                return ml_result
-                                
-                        except Exception as e:
-                            if self.logger:
-                                self.logger.debug(f"ML prediction failed for {corner_name}: {e}")
-            
-            # LAYER 2: FALL BACK TO PADDLE DETECTOR (if ML didn't find with high confidence)
+            # CRITICAL DEBUG: Log that we're about to call advanced detector
             if self.logger:
-                if self.ml_model:
-                    self.logger.debug(f"🔄 ML not confident, using Paddle detector for {page_info.original_name}")
-                else:
-                    self.logger.debug(f"📋 No ML model, using Paddle detector for {page_info.original_name}")
+                self.logger.info(f"🚀 ABOUT TO CALL ADVANCED DETECTOR for {page_info.original_name}")
+                self.logger.info(f"   Paddle detector exists: {self.paddle_detector is not None}")
+                self.logger.info(f"   Image loaded: {image.size}")
             
             # PRIORITY FIX: Use EXISTING paddle detector (already has API fix)
             # This prevents content numbers from polluting the results
