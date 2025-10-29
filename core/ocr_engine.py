@@ -171,7 +171,7 @@ class OCREngine:
             print(f"ERROR: {message}")
     
     def process_batch(self, pages: List[PageInfo], workers: int = 1) -> List[OCRResult]:
-        """Process multiple pages with OCR (supports multi-threading)
+        """Process multiple pages with OCR (supports multi-threading with dynamic memory monitoring)
         
         Args:
             pages: List of pages to process
@@ -181,47 +181,101 @@ class OCREngine:
             List of OCR results
         """
         if workers > 1:
-            # Multi-threaded processing
+            # Multi-threaded processing with REAL-TIME MEMORY MONITORING
             from concurrent.futures import ThreadPoolExecutor, as_completed
+            import psutil
+            import gc
             
             if self.logger:
                 self.logger.info(f"⚡ Using {workers} workers for parallel OCR processing")
             
             results = [None] * len(pages)  # Pre-allocate results list
             
+            # ═══════════════════════════════════════════════════════════════
+            # ADAPTIVE BATCHING: Don't submit all tasks at once!
+            # Submit in batches to prevent memory overload
+            # ═══════════════════════════════════════════════════════════════
+            batch_size = min(workers * 10, 50)  # Submit 10x workers at a time, max 50
+            current_workers = workers  # Track current worker count
+            completed = 0
+            memory_checks = 0
+            worker_reductions = 0
+            
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                # Submit all tasks
-                future_to_index = {
-                    executor.submit(self.process_page, page, len(pages)): i 
-                    for i, page in enumerate(pages)
-                }
-                
-                # Collect results as they complete
-                completed = 0
-                for future in as_completed(future_to_index):
-                    if hasattr(self, 'cancel_processing') and self.cancel_processing:
-                        if self.logger:
-                            self.logger.info("OCR processing cancelled by user")
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        break
+                # Process in batches
+                for batch_start in range(0, len(pages), batch_size):
+                    batch_end = min(batch_start + batch_size, len(pages))
+                    batch_pages = pages[batch_start:batch_end]
                     
-                    idx = future_to_index[future]
-                    try:
-                        results[idx] = future.result()
-                        completed += 1
+                    # ═══════════════════════════════════════════════════════
+                    # MEMORY MONITORING: Check RAM before each batch
+                    # ═══════════════════════════════════════════════════════
+                    memory_checks += 1
+                    available_ram_gb = psutil.virtual_memory().available / (1024**3)
+                    ram_percent = psutil.virtual_memory().percent
+                    
+                    # CRITICAL: If RAM is getting low, reduce workers dynamically!
+                    if ram_percent > 85 and current_workers > 1:
+                        old_workers = current_workers
+                        current_workers = max(1, current_workers // 2)
+                        worker_reductions += 1
                         if self.logger:
-                            self.logger.progress("OCR Processing", completed, len(pages))
-                    except Exception as e:
+                            self.logger.warning(f"⚠️ RAM critically low ({ram_percent:.1f}% used) - Reducing workers: {old_workers} → {current_workers}")
+                        # Force garbage collection
+                        gc.collect()
+                    
+                    elif ram_percent > 75 and current_workers > 2:
+                        old_workers = current_workers
+                        current_workers = max(2, current_workers - 1)
+                        worker_reductions += 1
                         if self.logger:
-                            self.logger.error(f"OCR failed for page {idx}: {e}")
-                        # Create empty result as fallback
-                        results[idx] = OCRResult(
-                            page_info=pages[idx],
-                            full_text="",
-                            detected_number=None,
-                            confidence=0.0,
-                            processing_time=0.0
-                        )
+                            self.logger.warning(f"⚠️ RAM getting low ({ram_percent:.1f}% used) - Reducing workers: {old_workers} → {current_workers}")
+                        gc.collect()
+                    
+                    # Submit batch tasks
+                    future_to_index = {}
+                    for i, page in enumerate(batch_pages):
+                        idx = batch_start + i
+                        future = executor.submit(self.process_page, page, len(pages))
+                        future_to_index[future] = idx
+                    
+                    # Collect results for this batch
+                    for future in as_completed(future_to_index):
+                        if hasattr(self, 'cancel_processing') and self.cancel_processing:
+                            if self.logger:
+                                self.logger.info("OCR processing cancelled by user")
+                            executor.shutdown(wait=False, cancel_futures=True)
+                            return results
+                        
+                        idx = future_to_index[future]
+                        try:
+                            results[idx] = future.result()
+                            completed += 1
+                            if self.logger:
+                                # Show memory status in progress
+                                ram_info = f" (RAM: {ram_percent:.1f}%)"
+                                self.logger.progress("OCR Processing", completed, len(pages))
+                        except Exception as e:
+                            if self.logger:
+                                self.logger.error(f"OCR failed for page {idx}: {e}")
+                            # Create empty result as fallback
+                            results[idx] = OCRResult(
+                                page_info=pages[idx],
+                                full_text="",
+                                detected_number=None,
+                                confidence=0.0,
+                                processing_time=0.0
+                            )
+                        
+                        # Periodic memory cleanup
+                        if completed % 50 == 0:
+                            gc.collect()
+            
+            # Final status report
+            if self.logger and (worker_reductions > 0 or memory_checks > 0):
+                final_ram = psutil.virtual_memory().percent
+                self.logger.info(f"💾 Memory monitoring: {memory_checks} checks, {worker_reductions} worker reductions")
+                self.logger.info(f"💾 Final RAM usage: {final_ram:.1f}%")
             
             return results
         
