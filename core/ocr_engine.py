@@ -346,7 +346,10 @@ class OCREngine:
             
             # LAYER 2: FALL BACK TO PADDLE DETECTOR (if ML didn't find with high confidence)
             if self.logger:
-                self.logger.info(f"🔄 ML not confident, using Paddle detector for {page_info.original_name}")
+                if self.ml_model:
+                    self.logger.debug(f"🔄 ML not confident, using Paddle detector for {page_info.original_name}")
+                else:
+                    self.logger.debug(f"📋 No ML model, using Paddle detector for {page_info.original_name}")
             
             # PRIORITY FIX: Use EXISTING paddle detector (already has API fix)
             # This prevents content numbers from polluting the results
