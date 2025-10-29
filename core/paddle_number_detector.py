@@ -318,7 +318,20 @@ class PaddleNumberDetector:
             expected_msg = f" (expecting {expected_type})" if expected_type else ""
             self.logger.debug(f"🧠 EDGE-FIRST scan order{expected_msg}: {scan_order[:6]}... ({len(scan_order)} positions)")
         
+        positions_scanned = 0
+        positions_skipped = 0
+        
         for corner_name in scan_order:
+            # ═══════════════════════════════════════════════════════════════════════
+            # SPEED OPTIMIZATION: Skip low-probability positions
+            # After AI learning, only scan positions with >5% success rate
+            # ═══════════════════════════════════════════════════════════════════════
+            if self.ai_learning.should_skip_position(corner_name):
+                positions_skipped += 1
+                if self.logger:
+                    self.logger.debug(f"⚡ Skipping {corner_name} (low probability)")
+                continue
+            
             (x1, y1, x2, y2) = corners[corner_name]
             
             # Extract corner region
@@ -326,6 +339,7 @@ class PaddleNumberDetector:
             
             # OCR the corner with PaddleOCR and calculate edge proximity
             corner_candidates = self._ocr_corner(corner_region, corner_name, x1, y1)
+            positions_scanned += 1
             
             # ═══════════════════════════════════════════════════════════════════════
             # PROXIMITY-BASED SCORING: Boost confidence based on distance from edge
@@ -352,8 +366,20 @@ class PaddleNumberDetector:
                 # TEACH THE AI: This location had a page number!
                 self.ai_learning.record_success(corner_name, number_type, best_candidate.number)
                 
+                # ═══════════════════════════════════════════════════════════════════════
+                # SPEED OPTIMIZATION: Early exit on high confidence
+                # If we found a number with >95% confidence, stop scanning
+                # ═══════════════════════════════════════════════════════════════════════
+                if best_candidate.confidence >= 95.0:
+                    if self.logger:
+                        self.logger.debug(f"⚡ EARLY EXIT: High confidence {best_candidate.confidence:.1f}% in {corner_name}")
+                        self.logger.debug(f"⚡ Speed gain: Scanned {positions_scanned}/{len(scan_order)} positions, skipped {positions_skipped}")
+                    break
+                
                 # EARLY EXIT: Skip other corners if AI is confident about this location
                 if self.ai_learning.should_skip_remaining_corners(corner_name):
+                    if self.logger:
+                        self.logger.debug(f"⚡ Speed gain: Scanned {positions_scanned}/{len(scan_order)} positions, skipped {positions_skipped}")
                     break
             else:
                 # TEACH THE AI: This location had no page number

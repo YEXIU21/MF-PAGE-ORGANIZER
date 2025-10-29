@@ -213,6 +213,31 @@ class AIPatternLearning:
         
         return False
     
+    def should_skip_position(self, location: str) -> bool:
+        """
+        SPEED OPTIMIZATION: Skip positions with low probability
+        After learning phase, skip positions that rarely contain page numbers
+        """
+        # Always scan during initial learning (first 5 pages)
+        if self.pages_processed < 5:
+            return False
+        
+        # Check if this position has been tried
+        if location not in self.location_patterns:
+            return False  # Unknown position, scan it
+        
+        pattern = self.location_patterns[location]
+        
+        # Skip if position has been tried 5+ times with no success
+        if pattern.total_attempts >= 5 and pattern.success_count == 0:
+            return True
+        
+        # Skip if confidence is very low (<5%)
+        if pattern.total_attempts >= 3 and pattern.confidence < 0.05:
+            return True
+        
+        return False
+    
     def record_success(self, location: str, number_type: str, page_num: int):
         """
         Record successful detection - ADVANCED AI LEARNING PER NUMBER TYPE!
