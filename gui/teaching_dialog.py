@@ -94,8 +94,8 @@ But we recommend teaching the AI first!
         teach_button = ttk.Button(
             button_frame,
             text="🎓 Teach the AI Now (Recommended)",
-            command=self.on_teach,
-            style='Accent.TButton'
+            command=self.on_teach
+            # Removed style='Accent.TButton' - caused pyimage1 error
         )
         teach_button.pack(fill=tk.X, pady=(0, 10))
         
