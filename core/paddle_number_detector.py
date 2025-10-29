@@ -502,9 +502,11 @@ class PaddleNumberDetector:
             h, w = region.shape[:2]
             if h > 200 or w > 200:
                 # Resize to max 200px while maintaining aspect ratio
-                scale = min(200/h, 200/w)
-                new_h, new_w = int(h * scale), int(w * scale)
-                region = cv2.resize(region, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                scale = min(200.0/max(h,1), 200.0/max(w,1))
+                new_h, new_w = max(int(h * scale), 1), max(int(w * scale), 1)
+                # Only resize if dimensions are valid
+                if new_h > 0 and new_w > 0 and h > 0 and w > 0:
+                    region = cv2.resize(region, (new_w, new_h), interpolation=cv2.INTER_AREA)
             
             # Save corner region as temporary file for PaddleOCR 3.2+ predict API
             # NO PREPROCESSING - it causes false positives from page content
