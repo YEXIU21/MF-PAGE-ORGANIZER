@@ -235,7 +235,7 @@ class PaddleNumberDetector:
 
     
     def _scan_corners(self, image: Image.Image, filename: str = "", position: int = None) -> List[NumberCandidate]:
-        """Scan all 4 corners for page numbers"""
+        """Scan edges and corners for page numbers with EDGE-FIRST priority"""
         candidates = []
         
         # SMART: Detect expected number type from POSITION (not filename!)
@@ -245,35 +245,78 @@ class PaddleNumberDetector:
         img_array = np.array(image)
         height, width = img_array.shape[:2]
         
-        # Define scanning regions - ENLARGED for better OCR accuracy
-        # CRITICAL: Larger regions capture complete page numbers (vi, vii, viii, etc.)
-        corner_size = 300  # Increased from 200 to 300 pixels
-        center_width = 400  # Increased from 300 to 400 pixels
-        middle_height = 300  # Height for middle edge regions
+        # ═══════════════════════════════════════════════════════════════════════
+        # EDGE-FOCUSED DETECTION - PRIORITIZE EXTREME EDGES
+        # Page numbers in published books are ALWAYS at the very edges
+        # ═══════════════════════════════════════════════════════════════════════
         
+        # Edge strip dimensions
+        edge_strip_thickness = 150  # Thin strip along edges (50-150px optimal)
+        corner_size = 300  # Standard corner regions
+        center_width = 400  # Center strip width
+        middle_height = 300  # Middle edge height
+        
+        # Define scanning regions with EDGE-FIRST priority
         corners = {
+            # ★★★ PRIORITY 1: EXTREME EDGE STRIPS (thin strips where page numbers are) ★★★
+            'edge_top_left': (0, 0, edge_strip_thickness, edge_strip_thickness),
+            'edge_top_right': (width - edge_strip_thickness, 0, width, edge_strip_thickness),
+            'edge_bottom_left': (0, height - edge_strip_thickness, edge_strip_thickness, height),
+            'edge_bottom_right': (width - edge_strip_thickness, height - edge_strip_thickness, width, height),
+            'edge_top_center': (width//2 - center_width//2, 0, 
+                               width//2 + center_width//2, edge_strip_thickness),
+            'edge_bottom_center': (width//2 - center_width//2, height - edge_strip_thickness, 
+                                  width//2 + center_width//2, height),
+            
+            # ★★ PRIORITY 2: FULL EDGE STRIPS (entire edge length) ★★
+            'full_edge_top': (0, 0, width, edge_strip_thickness),
+            'full_edge_bottom': (0, height - edge_strip_thickness, width, height),
+            'full_edge_left': (0, 0, edge_strip_thickness, height),
+            'full_edge_right': (width - edge_strip_thickness, 0, width, height),
+            
+            # ★ PRIORITY 3: STANDARD CORNER REGIONS (fallback) ★
             'top_left': (0, 0, corner_size, corner_size),
             'top_right': (width - corner_size, 0, width, corner_size),
             'bottom_left': (0, height - corner_size, corner_size, height),
             'bottom_right': (width - corner_size, height - corner_size, width, height),
-            # ENHANCED: Add center positions (very common for page numbers!)
+            
+            # PRIORITY 4: CENTER & MIDDLE POSITIONS (less common)
             'bottom_center': (width//2 - center_width//2, height - corner_size, 
                             width//2 + center_width//2, height),
             'top_center': (width//2 - center_width//2, 0, 
                           width//2 + center_width//2, corner_size),
-            # NEW: Add middle edge positions (for edge-middle page numbers)
             'middle_left': (0, height//2 - middle_height//2, 
                           corner_size, height//2 + middle_height//2),
             'middle_right': (width - corner_size, height//2 - middle_height//2,
                            width, height//2 + middle_height//2)
         }
         
-        # INTELLIGENT SCAN ORDER: Use AI learning with expected number type!
-        scan_order = self.ai_learning.get_scan_order(expected_number_type=expected_type)
+        # ═══════════════════════════════════════════════════════════════════════
+        # INTELLIGENT SCAN ORDER: EDGE-FIRST with AI learning
+        # ═══════════════════════════════════════════════════════════════════════
+        
+        # Define edge-first priority order
+        edge_first_order = [
+            # PRIORITY 1: Extreme edges (most common)
+            'edge_top_left', 'edge_top_right', 'edge_bottom_left', 'edge_bottom_right',
+            'edge_top_center', 'edge_bottom_center',
+            # PRIORITY 2: Full edge strips
+            'full_edge_top', 'full_edge_bottom', 'full_edge_left', 'full_edge_right',
+            # PRIORITY 3: Standard corners
+            'top_left', 'top_right', 'bottom_left', 'bottom_right',
+            # PRIORITY 4: Centers and middles
+            'top_center', 'bottom_center', 'middle_left', 'middle_right'
+        ]
+        
+        # Use AI learning to refine scan order based on historical success
+        scan_order = self.ai_learning.get_edge_first_scan_order(
+            base_order=edge_first_order,
+            expected_number_type=expected_type
+        )
         
         if self.logger:
             expected_msg = f" (expecting {expected_type})" if expected_type else ""
-            self.logger.debug(f"🧠 AI scan order{expected_msg}: {scan_order}")
+            self.logger.debug(f"🧠 EDGE-FIRST scan order{expected_msg}: {scan_order[:6]}... ({len(scan_order)} positions)")
         
         for corner_name in scan_order:
             (x1, y1, x2, y2) = corners[corner_name]
@@ -281,8 +324,23 @@ class PaddleNumberDetector:
             # Extract corner region
             corner_region = img_array[y1:y2, x1:x2]
             
-            # OCR the corner with PaddleOCR
+            # OCR the corner with PaddleOCR and calculate edge proximity
             corner_candidates = self._ocr_corner(corner_region, corner_name, x1, y1)
+            
+            # ═══════════════════════════════════════════════════════════════════════
+            # PROXIMITY-BASED SCORING: Boost confidence based on distance from edge
+            # Text closest to edge = highest confidence (user's brilliant insight!)
+            # ═══════════════════════════════════════════════════════════════════════
+            for candidate in corner_candidates:
+                if candidate.bbox:
+                    # Calculate proximity to actual edge
+                    proximity_boost = self._calculate_edge_proximity_boost(
+                        candidate.bbox, corner_name, width, height
+                    )
+                    candidate.confidence += proximity_boost
+                    if proximity_boost > 0:
+                        candidate.reasoning.append(f"Edge proximity: +{proximity_boost:.0f} (closer to edge)")
+            
             candidates.extend(corner_candidates)
             
             # AI LEARNING: Record detection results
@@ -580,8 +638,23 @@ class PaddleNumberDetector:
                     confidence *= 0.4  # Likely ISBN/reference, not page number
                     reasoning.append("High number in unusual position (likely reference)")
                 
-                # BOOST: Standard page number positions
-                if location in ['top_left', 'top_right']:
+                # ★★★ MASSIVE BOOST: Extreme edge positions (where page numbers really are!) ★★★
+                if location.startswith('edge_'):
+                    confidence += 40
+                    reasoning.append("EXTREME EDGE (primary page number location)")
+                    
+                    # Extra boost for most common edge positions
+                    if location in ['edge_top_left', 'edge_top_right', 'edge_bottom_right']:
+                        confidence += 15
+                        reasoning.append("Most common edge position")
+                
+                # ★★ BOOST: Full edge strips
+                elif location.startswith('full_edge_'):
+                    confidence += 30
+                    reasoning.append("Full edge strip (highly reliable)")
+                
+                # ★ BOOST: Standard corner positions
+                elif location in ['top_left', 'top_right']:
                     confidence += 25
                     reasoning.append("Standard page number position")
                 elif location in ['top_center', 'bottom_center']:
@@ -591,9 +664,10 @@ class PaddleNumberDetector:
                     confidence += 10
                     reasoning.append("Top corner")
                 
+                # Right side bonus (odd pages)
                 if 'right' in location:
                     confidence += 5
-                    reasoning.append("Right side")
+                    reasoning.append("Right side (odd pages)")
                 
                 # Boost if isolated number
                 if text == num_text:
@@ -651,8 +725,23 @@ class PaddleNumberDetector:
             confidence = ocr_confidence * 100 * 0.95
             reasoning = [f"Roman '{roman_text}' in {location}"]
             
-            # BOOST: Roman numerals in front matter standard positions
-            if location in ['top_left', 'top_right']:
+            # ★★★ MASSIVE BOOST: Extreme edge positions for roman numerals ★★★
+            if location.startswith('edge_'):
+                confidence += 45
+                reasoning.append("EXTREME EDGE (primary roman numeral location)")
+                
+                # Extra boost for top edges (roman numerals most common at top)
+                if 'top' in location:
+                    confidence += 10
+                    reasoning.append("Top edge (roman standard)")
+            
+            # ★★ BOOST: Full edge strips
+            elif location.startswith('full_edge_'):
+                confidence += 35
+                reasoning.append("Full edge strip (roman front matter)")
+            
+            # ★ BOOST: Standard positions
+            elif location in ['top_left', 'top_right']:
                 confidence += 30
                 reasoning.append("Front matter standard position")
             elif location in ['top_center']:
@@ -724,6 +813,74 @@ class PaddleNumberDetector:
             result = sharpened
         
         return result
+    
+    def _calculate_edge_proximity_boost(self, bbox: Tuple[int, int, int, int], 
+                                       location: str, img_width: int, img_height: int) -> float:
+        """
+        Calculate confidence boost based on proximity to image edge
+        The closer text is to the edge, the higher the boost
+        
+        USER'S BRILLIANT INSIGHT: Page numbers are at the VERY edge!
+        This function prioritizes text closest to the edge.
+        """
+        x_min, y_min, x_max, y_max = bbox
+        
+        # Calculate distances to all 4 edges
+        dist_to_left = x_min
+        dist_to_right = img_width - x_max
+        dist_to_top = y_min
+        dist_to_bottom = img_height - y_max
+        
+        # Determine which edge we're near based on location
+        if 'left' in location:
+            primary_distance = dist_to_left
+        elif 'right' in location:
+            primary_distance = dist_to_right
+        else:
+            # Center positions - use minimum distance to either left or right
+            primary_distance = min(dist_to_left, dist_to_right)
+        
+        # Also consider vertical distance for top/bottom positions
+        if 'top' in location:
+            vertical_distance = dist_to_top
+        elif 'bottom' in location:
+            vertical_distance = dist_to_bottom
+        else:
+            # Middle positions - use minimum distance to either top or bottom
+            vertical_distance = min(dist_to_top, dist_to_bottom)
+        
+        # Calculate minimum distance to nearest edge
+        min_edge_distance = min(primary_distance, vertical_distance)
+        
+        # ═══════════════════════════════════════════════════════════════
+        # PROXIMITY SCORING ALGORITHM
+        # ═══════════════════════════════════════════════════════════════
+        # 0-10px from edge:    +30 confidence (EXTREMELY close - almost certainly page number!)
+        # 11-25px from edge:   +20 confidence (Very close - highly likely)
+        # 26-50px from edge:   +10 confidence (Close - likely)
+        # 51-100px from edge:  +5 confidence  (Somewhat close)
+        # 101+ px from edge:   0 confidence   (Not close enough)
+        
+        if min_edge_distance <= 10:
+            boost = 30
+            proximity_level = "EXTREMELY close"
+        elif min_edge_distance <= 25:
+            boost = 20
+            proximity_level = "very close"
+        elif min_edge_distance <= 50:
+            boost = 10
+            proximity_level = "close"
+        elif min_edge_distance <= 100:
+            boost = 5
+            proximity_level = "somewhat close"
+        else:
+            boost = 0
+            proximity_level = "not close"
+        
+        if self.logger and boost > 0:
+            self.logger.debug(f"📏 Edge proximity: {min_edge_distance}px ({proximity_level}) → +{boost} confidence")
+        
+        return boost
     
     def _roman_to_int(self, s: str) -> Optional[int]:
         """Convert Roman numeral to integer"""

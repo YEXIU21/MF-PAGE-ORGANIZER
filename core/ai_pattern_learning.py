@@ -44,8 +44,21 @@ class AIPatternLearning:
     def __init__(self, logger=None):
         self.logger = logger
         
-        # Location learning - ENHANCED with center and middle positions
+        # Location learning - ENHANCED with edge-first positions
         self.location_patterns: Dict[str, LocationPattern] = {
+            # Extreme edge positions (highest priority)
+            'edge_top_left': LocationPattern('edge_top_left'),
+            'edge_top_right': LocationPattern('edge_top_right'),
+            'edge_bottom_left': LocationPattern('edge_bottom_left'),
+            'edge_bottom_right': LocationPattern('edge_bottom_right'),
+            'edge_top_center': LocationPattern('edge_top_center'),
+            'edge_bottom_center': LocationPattern('edge_bottom_center'),
+            # Full edge strips
+            'full_edge_top': LocationPattern('full_edge_top'),
+            'full_edge_bottom': LocationPattern('full_edge_bottom'),
+            'full_edge_left': LocationPattern('full_edge_left'),
+            'full_edge_right': LocationPattern('full_edge_right'),
+            # Standard corners
             'top_left': LocationPattern('top_left'),
             'top_right': LocationPattern('top_right'),
             'bottom_left': LocationPattern('bottom_left'),
@@ -115,6 +128,71 @@ class AIPatternLearning:
             self.logger.debug(f"🎯 Smart scan order: {scan_order[0]} ({top_confidence:.0%} confidence) → others")
         
         return scan_order
+    
+    def get_edge_first_scan_order(self, base_order: List[str], expected_number_type: str = None) -> List[str]:
+        """
+        EDGE-FIRST ADAPTIVE SCANNING: Return positions in edge-first order with AI learning
+        Prioritizes extreme edges where page numbers actually are in published books
+        """
+        # LEARNING PHASE: Use base edge-first order until we have enough detections
+        if expected_number_type == 'roman' and not self.roman_learned:
+            if self.logger:
+                self.logger.debug(f"🎓 Roman learning phase (edge-first): {self.roman_detections}/10 detections")
+            # Edge-first order for roman numerals (usually at top)
+            return [
+                'edge_top_left', 'edge_top_right', 'edge_top_center',
+                'full_edge_top', 'edge_bottom_left', 'edge_bottom_right',
+                'full_edge_left', 'full_edge_right', 'top_left', 'top_right',
+                'bottom_center', 'top_center', 'middle_left', 'middle_right',
+                'bottom_left', 'bottom_right'
+            ]
+        
+        elif expected_number_type == 'arabic' and not self.arabic_learned:
+            if self.logger:
+                self.logger.debug(f"🎓 Arabic learning phase (edge-first): {self.arabic_detections}/10 detections")
+            # Edge-first order for arabic numbers (can be top or bottom)
+            return [
+                'edge_top_right', 'edge_bottom_right', 'edge_top_left',
+                'edge_bottom_center', 'edge_top_center', 'full_edge_top',
+                'full_edge_bottom', 'full_edge_right', 'bottom_center',
+                'top_center', 'top_left', 'top_right', 'bottom_left',
+                'bottom_right', 'middle_left', 'middle_right'
+            ]
+        
+        elif not self.roman_learned and not self.arabic_learned:
+            if self.logger:
+                self.logger.debug(f"🎓 General learning phase (edge-first): Roman {self.roman_detections}/10, Arabic {self.arabic_detections}/10")
+            # Default edge-first order
+            return base_order
+        
+        # OPTIMIZED PHASE: Use AI learning to refine scan order
+        # Filter base_order to only include positions we've learned about
+        learned_positions = [
+            loc for loc in base_order 
+            if loc in self.location_patterns and self.location_patterns[loc].total_attempts > 0
+        ]
+        
+        # Sort learned positions by confidence
+        learned_sorted = sorted(
+            learned_positions,
+            key=lambda loc: self.location_patterns[loc].confidence,
+            reverse=True
+        )
+        
+        # Add unlearned positions at the end (maintaining edge-first priority)
+        unlearned_positions = [loc for loc in base_order if loc not in learned_positions]
+        
+        final_order = learned_sorted + unlearned_positions
+        
+        if self.logger:
+            if learned_sorted:
+                top_location = learned_sorted[0]
+                top_confidence = self.location_patterns[top_location].confidence
+                self.logger.debug(f"🎯 Smart edge-first order: {top_location} ({top_confidence:.0%} confidence) → {len(learned_sorted)-1} more learned, {len(unlearned_positions)} unlearned")
+            else:
+                self.logger.debug(f"🎯 Edge-first order (no learning yet): {len(base_order)} positions")
+        
+        return final_order
     
     def should_skip_remaining_corners(self, found_location: str) -> bool:
         """
