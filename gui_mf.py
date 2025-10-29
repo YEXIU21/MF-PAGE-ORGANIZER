@@ -34,13 +34,11 @@ except ImportError as e:
         messagebox.showerror("Error", f"System components not found: {e}")
         sys.exit(1)
 
-# ML Model Integration
+# ML Model Integration - Base imports only (no TensorFlow yet)
 try:
     from core.model_manager import get_model_manager
     from gui.teaching_dialog import show_teaching_dialog
-    from ml_training.interactive_labeler import InteractiveLabeler
-    from ml_training.quick_trainer import QuickTrainer
-    ML_AVAILABLE = True
+    ML_AVAILABLE = True  # Dialog always available!
 except ImportError:
     ML_AVAILABLE = False
 
@@ -1107,6 +1105,20 @@ All rights reserved.
             )
             return
         
+        # Lazy import - only load when actually needed
+        try:
+            from ml_training.interactive_labeler import InteractiveLabeler
+        except ImportError as e:
+            messagebox.showerror(
+                "TensorFlow Required",
+                "ML teaching requires TensorFlow to be installed.\n\n"
+                "Install it with:\n"
+                "pip install tensorflow\n\n"
+                "Then restart the application.\n\n"
+                f"Error: {e}"
+            )
+            return
+        
         # Launch interactive labeler
         try:
             labeler = InteractiveLabeler(folder)
@@ -1135,6 +1147,20 @@ All rights reserved.
     def train_ml_model(self):
         """Train ML model from labeled data"""
         from gui.training_progress import TrainingProgressDialog
+        
+        # Lazy import - only load when actually needed
+        try:
+            from ml_training.quick_trainer import QuickTrainer
+        except ImportError as e:
+            messagebox.showerror(
+                "TensorFlow Required",
+                "ML training requires TensorFlow to be installed.\n\n"
+                "Install it with:\n"
+                "pip install tensorflow\n\n"
+                "Then restart the application.\n\n"
+                f"Error: {e}"
+            )
+            return False
         
         def training_task():
             """Actual training function"""
