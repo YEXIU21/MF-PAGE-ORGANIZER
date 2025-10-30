@@ -36,6 +36,9 @@ class InteractiveLabeler:
         self.end_y = None
         self.selecting = False
         
+        # Image reference keeper to prevent garbage collection
+        self._image_keeper = []
+        
         # Stats
         self.stats = {
             'total_processed': 0,
@@ -219,7 +222,7 @@ class InteractiveLabeler:
         self.pil_image = Image.fromarray(rgb_image)
         self.photo = ImageTk.PhotoImage(self.pil_image)
         self.photo.image = self.pil_image  # Keep extra reference to prevent GC
-        _IMAGE_CACHE[id(self)] = self.photo  # Store in module-level cache!
+        self._image_keeper.append(self.photo)  # Add to list - keeps ALL images!
         self.image_label.image = self.photo  # CRITICAL: Keep reference on widget itself!
         self.image_label.update()  # Force tkinter to process the reference!
         self.image_label.config(image=self.photo)
@@ -284,7 +287,7 @@ class InteractiveLabeler:
         pil_image = Image.fromarray(display_copy)
         self.photo = ImageTk.PhotoImage(pil_image)
         self.photo.image = pil_image  # Keep reference to prevent GC
-        _IMAGE_CACHE[id(self)] = self.photo  # Store in module-level cache!
+        self._image_keeper.append(self.photo)  # Add to list - keeps ALL images!
         self.image_label.image = self.photo  # CRITICAL: Keep reference on widget!
         self.image_label.update()  # Force tkinter to process the reference!
         self.image_label.config(image=self.photo)
