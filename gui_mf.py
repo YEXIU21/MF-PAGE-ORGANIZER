@@ -1439,13 +1439,35 @@ All rights reserved.
                 time.sleep(1)
                 progress.close()
                 
-                # Show success message
-                self.root.after(100, lambda: messagebox.showinfo(
-                    "Success!",
-                    "AI model trained successfully!\n\n"
-                    f"Validation accuracy: {trainer.history.history['val_accuracy'][-1]*100:.1f}%\n\n"
-                    "Processing will now be 10x faster!"
-                ))
+                # Get validation accuracy
+                val_acc = trainer.history.history['val_accuracy'][-1]
+                total_images = len(X_train) + len(X_val)
+                
+                # Show appropriate message based on validation accuracy
+                def show_result_message():
+                    if val_acc < 0.3:
+                        messagebox.showwarning(
+                            "Training Complete (Low Accuracy)",
+                            f"⚠️ Model training finished but accuracy is low.\n\n"
+                            f"Validation accuracy: {val_acc*100:.1f}%\n\n"
+                            f"This means the model won't be useful yet.\n\n"
+                            f"Recommendation:\n"
+                            f"• Label more images (current: {total_images})\n"
+                            f"• Aim for 100+ images total\n"
+                            f"• 5-10 samples per page number\n"
+                            f"• Use zoom feature for precision\n"
+                            f"• Retrain for better results\n\n"
+                            f"Model saved, but will fallback to PaddleOCR."
+                        )
+                    else:
+                        messagebox.showinfo(
+                            "Success!",
+                            f"✓ AI model trained successfully!\n\n"
+                            f"Validation accuracy: {val_acc*100:.1f}%\n\n"
+                            f"Processing will now be faster!"
+                        )
+                
+                self.root.after(100, show_result_message)
                 
                 # Reload model
                 if self.model_manager:
