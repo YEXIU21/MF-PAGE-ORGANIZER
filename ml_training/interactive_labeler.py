@@ -53,8 +53,17 @@ class InteractiveLabeler:
         """Get all image files from folder"""
         files = []
         for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
-            files.extend(list(self.image_folder.glob(ext)))
-        return sorted(files)
+            matches = list(self.image_folder.glob(ext))
+            files.extend(matches)
+            if matches:
+                print(f"[DEBUG] Found {len(matches)} files with extension {ext}")
+        
+        # Remove duplicates (case-insensitive filesystems might cause duplicates)
+        unique_files = list(set(files))
+        print(f"[DEBUG] Total files found: {len(files)}, Unique files: {len(unique_files)}")
+        print(f"[DEBUG] Image folder: {self.image_folder}")
+        
+        return sorted(unique_files)
     
     def setup_gui(self):
         """Create the GUI interface"""
@@ -173,6 +182,9 @@ class InteractiveLabeler:
         self.skip_button = ttk.Button(button_frame, text="⏭ Skip", command=self.skip_image)
         self.skip_button.pack(fill=tk.X, pady=(0, 5))
         
+        self.prev_button = ttk.Button(button_frame, text="⏮ Previous", command=self.previous_image)
+        self.prev_button.pack(fill=tk.X, pady=(0, 5))
+        
         # Stats
         stats_frame = ttk.LabelFrame(right_frame, text="Statistics", padding=10)
         stats_frame.pack(fill=tk.BOTH, expand=True)
@@ -286,12 +298,16 @@ class InteractiveLabeler:
         
         # Clear canvas and display image at calculated position
         self.image_canvas.delete("all")
+        # Force canvas update before creating new image
+        self.image_canvas.update_idletasks()
         self.canvas_image_id = self.image_canvas.create_image(
             self.image_offset_x, 
             self.image_offset_y,
             anchor=tk.NW,  # Northwest anchor = top-left corner at specified position
             image=self.photo
         )
+        # Force canvas to redraw
+        self.image_canvas.update()
         
         # Update info
         self.filename_label.config(text=image_path.name)
@@ -434,6 +450,17 @@ class InteractiveLabeler:
         self.stats['total_processed'] += 1
         self.current_index += 1
         self.load_current_image()
+    
+    def previous_image(self):
+        """Go back to previous image"""
+        if self.current_index > 0:
+            self.current_index -= 1
+            # Decrease processed count if we're going back
+            if self.stats['total_processed'] > 0:
+                self.stats['total_processed'] -= 1
+            self.load_current_image()
+        else:
+            messagebox.showinfo("First Image", "Already at the first image!")
     
     def update_stats_display(self):
         """Update statistics display"""

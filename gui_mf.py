@@ -1144,14 +1144,34 @@ All rights reserved.
         try:
             from ml_training.interactive_labeler import InteractiveLabeler
         except ImportError as e:
-            messagebox.showerror(
-                "TensorFlow Required",
-                "ML teaching requires TensorFlow to be installed.\n\n"
-                "Install it with:\n"
-                "pip install tensorflow\n\n"
-                "Then restart the application.\n\n"
-                f"Error: {e}"
-            )
+            error_msg = str(e)
+            if 'tensorflow' in error_msg.lower():
+                messagebox.showerror(
+                    "TensorFlow Required",
+                    "ML training requires TensorFlow to be installed.\n\n"
+                    "Install it with:\n"
+                    "pip install tensorflow\n\n"
+                    "Then restart the application.\n\n"
+                    f"Error: {e}"
+                )
+            elif 'cv2' in error_msg or 'opencv' in error_msg.lower():
+                messagebox.showerror(
+                    "OpenCV Required",
+                    "Interactive labeler requires OpenCV to be installed.\n\n"
+                    "Install it with:\n"
+                    "pip install opencv-python\n\n"
+                    "Then restart the application.\n\n"
+                    f"Error: {e}"
+                )
+            else:
+                messagebox.showerror(
+                    "Missing Dependency",
+                    "Interactive labeler requires additional packages.\n\n"
+                    "Make sure these are installed:\n"
+                    "pip install opencv-python pillow numpy\n\n"
+                    "Then restart the application.\n\n"
+                    f"Error: {e}"
+                )
             return
         
         # Launch interactive labeler
