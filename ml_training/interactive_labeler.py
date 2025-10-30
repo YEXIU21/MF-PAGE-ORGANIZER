@@ -81,6 +81,10 @@ class InteractiveLabeler:
         self.root._dummy_keep = self._dummy_photo  # Keep reference
         print("[DEBUG] Tkinter image system pre-initialized")
         
+        # Initialize photo reference BEFORE any image operations
+        self.photo = None
+        self.pil_image = None
+        
         # Main frame
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -89,14 +93,19 @@ class InteractiveLabeler:
         left_frame = ttk.Frame(main_frame)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Image label
-        self.image_label = tk.Label(left_frame, bg='black')
-        self.image_label.pack(fill=tk.BOTH, expand=True)
+        # Use Canvas instead of Label for precise coordinate control
+        self.image_canvas = tk.Canvas(left_frame, bg='black', highlightthickness=0)
+        self.image_canvas.pack(fill=tk.BOTH, expand=True)
+        
+        # Track image position on canvas
+        self.canvas_image_id = None
+        self.image_offset_x = 0
+        self.image_offset_y = 0
         
         # Bind mouse events for selection
-        self.image_label.bind('<Button-1>', self.on_mouse_down)
-        self.image_label.bind('<B1-Motion>', self.on_mouse_drag)
-        self.image_label.bind('<ButtonRelease-1>', self.on_mouse_up)
+        self.image_canvas.bind('<Button-1>', self.on_mouse_down)
+        self.image_canvas.bind('<B1-Motion>', self.on_mouse_drag)
+        self.image_canvas.bind('<ButtonRelease-1>', self.on_mouse_up)
         
         # Right panel - Controls
         right_frame = ttk.Frame(main_frame, width=300)
@@ -185,6 +194,10 @@ class InteractiveLabeler:
         """Load first image after mainloop has started"""
         print("[DEBUG] _delayed_load() called - loading first image...")
         try:
+            # Force widget to fully initialize
+            self.root.update_idletasks()
+            self.image_label.update()
+            
             self.load_current_image()
             print("[DEBUG] First image loaded successfully")
             self.update_stats_display()
@@ -192,6 +205,28 @@ class InteractiveLabeler:
             print(f"[ERROR] Failed to load initial image: {e}")
             import traceback
             traceback.print_exc()
+            # Try again with longer delay
+            print("[DEBUG] Retrying image load in 1 second...")
+            self.root.after(1000, self._retry_load)
+    
+    def _retry_load(self):
+        """Retry loading the first image with error handling"""
+        try:
+            print("[DEBUG] Retry attempt...")
+            self.root.update_idletasks()
+            self.load_current_image()
+            print("[DEBUG] Retry successful!")
+            self.update_stats_display()
+        except Exception as e:
+            print(f"[ERROR] Retry also failed: {e}")
+            messagebox.showerror(
+                "Image Loading Error",
+                f"Failed to load images. Please check:\n\n"
+                f"1. Image folder exists and contains images\n"
+                f"2. Images are valid (not corrupted)\n"
+                f"3. You have permission to read the files\n\n"
+                f"Error: {e}"
+            )
     
     def load_current_image(self):
         """Load and display current image"""
@@ -225,14 +260,38 @@ class InteractiveLabeler:
         self.display_image = rgb_image.copy()
         
         # Convert to PIL and Tk
-        # CRITICAL FIX: Assign to self.photo BEFORE config to prevent GC
+        # CRITICAL FIX: Assign to self.photo BEFORE canvas display to prevent GC
+        # Explicitly specify master widget to prevent reference issues
         self.pil_image = Image.fromarray(rgb_image)
-        self.photo = ImageTk.PhotoImage(self.pil_image)  # Instance var FIRST
-        self.image_label.config(image=self.photo)  # THEN use it
-        # Add additional references
+        self.photo = ImageTk.PhotoImage(self.pil_image, master=self.image_canvas)  # Use master parameter
+        
+        # Add multiple references BEFORE displaying to prevent premature GC
         self.photo.image = self.pil_image
         self._image_keeper.append(self.photo)
-        self.image_label.image = self.photo
+        _IMAGE_CACHE[f'image_{self.current_index}'] = self.photo  # Module-level cache
+        
+        # Calculate center position for image on canvas
+        canvas_width = self.image_canvas.winfo_width()
+        canvas_height = self.image_canvas.winfo_height()
+        
+        # If canvas not yet rendered, use reasonable defaults
+        if canvas_width <= 1:
+            canvas_width = 1000
+        if canvas_height <= 1:
+            canvas_height = 800
+        
+        img_width, img_height = self.pil_image.size
+        self.image_offset_x = max(0, (canvas_width - img_width) // 2)
+        self.image_offset_y = max(0, (canvas_height - img_height) // 2)
+        
+        # Clear canvas and display image at calculated position
+        self.image_canvas.delete("all")
+        self.canvas_image_id = self.image_canvas.create_image(
+            self.image_offset_x, 
+            self.image_offset_y,
+            anchor=tk.NW,  # Northwest anchor = top-left corner at specified position
+            image=self.photo
+        )
         
         # Update info
         self.filename_label.config(text=image_path.name)
@@ -247,22 +306,25 @@ class InteractiveLabeler:
     
     def on_mouse_down(self, event):
         """Mouse button pressed - start selection"""
-        self.start_x = event.x
-        self.start_y = event.y
+        # Adjust coordinates to account for image offset on canvas
+        self.start_x = event.x - self.image_offset_x
+        self.start_y = event.y - self.image_offset_y
         self.selecting = True
     
     def on_mouse_drag(self, event):
         """Mouse dragged - update selection"""
         if self.selecting:
-            self.end_x = event.x
-            self.end_y = event.y
+            # Adjust coordinates to account for image offset on canvas
+            self.end_x = event.x - self.image_offset_x
+            self.end_y = event.y - self.image_offset_y
             self.draw_selection()
     
     def on_mouse_up(self, event):
         """Mouse button released - finish selection"""
         if self.selecting:
-            self.end_x = event.x
-            self.end_y = event.y
+            # Adjust coordinates to account for image offset on canvas
+            self.end_x = event.x - self.image_offset_x
+            self.end_y = event.y - self.image_offset_y
             self.selecting = False
             self.draw_selection()
             
@@ -275,30 +337,36 @@ class InteractiveLabeler:
             )
     
     def draw_selection(self):
-        """Draw selection rectangle on image"""
+        """Draw selection rectangle on canvas"""
         if self.start_x is None or self.end_x is None:
             return
         
-        # Redraw image
-        display_copy = self.display_image.copy()
+        # Delete previous selection rectangle if it exists
+        self.image_canvas.delete("selection_rect")
         
-        # Draw rectangle
+        # Calculate rectangle coordinates (relative to image, not canvas)
         x1 = min(self.start_x, self.end_x)
         y1 = min(self.start_y, self.end_y)
         x2 = max(self.start_x, self.end_x)
         y2 = max(self.start_y, self.end_y)
         
-        cv2.rectangle(display_copy, (x1, y1), (x2, y2), (255, 0, 0), 2)
+        # Clamp coordinates to image bounds
+        img_width, img_height = self.pil_image.size if self.pil_image else (1000, 800)
+        x1 = max(0, min(x1, img_width))
+        y1 = max(0, min(y1, img_height))
+        x2 = max(0, min(x2, img_width))
+        y2 = max(0, min(y2, img_height))
         
-        # Convert and display
-        # CRITICAL FIX: Assign to self.photo BEFORE config to prevent GC
-        pil_image = Image.fromarray(display_copy)
-        self.photo = ImageTk.PhotoImage(pil_image)  # Instance var FIRST
-        self.image_label.config(image=self.photo)  # THEN use it
-        # Add additional references
-        self.photo.image = pil_image
-        self._image_keeper.append(self.photo)
-        self.image_label.image = self.photo
+        # Draw rectangle on canvas (adjust back to canvas coordinates)
+        self.image_canvas.create_rectangle(
+            x1 + self.image_offset_x,
+            y1 + self.image_offset_y,
+            x2 + self.image_offset_x,
+            y2 + self.image_offset_y,
+            outline='red',
+            width=2,
+            tags="selection_rect"
+        )
     
     def save_and_next(self):
         """Save current selection and move to next"""
