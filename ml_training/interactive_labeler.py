@@ -179,12 +179,19 @@ class InteractiveLabeler:
         self.root.update()
         
         # Schedule image loading to run AFTER mainloop starts (critical for PhotoImage)
-        self.root.after(100, self._delayed_load)
+        self.root.after(500, self._delayed_load)  # 500ms delay for stability
     
     def _delayed_load(self):
         """Load first image after mainloop has started"""
-        self.load_current_image()
-        self.update_stats_display()
+        print("[DEBUG] _delayed_load() called - loading first image...")
+        try:
+            self.load_current_image()
+            print("[DEBUG] First image loaded successfully")
+            self.update_stats_display()
+        except Exception as e:
+            print(f"[ERROR] Failed to load initial image: {e}")
+            import traceback
+            traceback.print_exc()
     
     def load_current_image(self):
         """Load and display current image"""
