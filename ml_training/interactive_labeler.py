@@ -204,6 +204,7 @@ class InteractiveLabeler:
         self.pil_image = Image.fromarray(rgb_image)
         self.photo = ImageTk.PhotoImage(self.pil_image)
         self.photo.image = self.pil_image  # Keep extra reference to prevent GC
+        self.image_label.image = self.photo  # CRITICAL: Keep reference on widget itself!
         self.image_label.config(image=self.photo)
         
         # Update info
