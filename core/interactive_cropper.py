@@ -291,7 +291,9 @@ class InteractiveCropper:
         
         # Resize for display
         display_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        self.current_pil_image = display_image  # Keep PIL image reference!
         self.current_image_tk = ImageTk.PhotoImage(display_image)
+        self.current_image_tk.image = display_image  # Keep reference to prevent GC!
         
         # Clear canvas
         self.canvas.delete("all")
