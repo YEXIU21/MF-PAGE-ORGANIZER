@@ -41,6 +41,13 @@ class InteractiveLabeler:
         self.min_zoom = 0.5
         self.max_zoom = 4.0
         
+        # Pan state
+        self.pan_x = 0
+        self.pan_y = 0
+        self.panning = False
+        self.pan_start_x = 0
+        self.pan_start_y = 0
+        
         # Image reference keeper to prevent garbage collection
         self._image_keeper = []
         
@@ -116,10 +123,18 @@ class InteractiveLabeler:
         self.image_offset_x = 0
         self.image_offset_y = 0
         
-        # Bind mouse events for selection
+        # Bind mouse events for selection (left-click)
         self.image_canvas.bind('<Button-1>', self.on_mouse_down)
         self.image_canvas.bind('<B1-Motion>', self.on_mouse_drag)
         self.image_canvas.bind('<ButtonRelease-1>', self.on_mouse_up)
+        
+        # Bind mouse events for panning (right-click or middle-click)
+        self.image_canvas.bind('<Button-3>', self.on_pan_start)      # Right-click
+        self.image_canvas.bind('<B3-Motion>', self.on_pan_drag)       # Right-click drag
+        self.image_canvas.bind('<ButtonRelease-3>', self.on_pan_end) # Right-click release
+        self.image_canvas.bind('<Button-2>', self.on_pan_start)      # Middle-click
+        self.image_canvas.bind('<B2-Motion>', self.on_pan_drag)       # Middle-click drag
+        self.image_canvas.bind('<ButtonRelease-2>', self.on_pan_end) # Middle-click release
         
         # Bind mouse wheel for zoom
         self.image_canvas.bind('<MouseWheel>', self.on_mouse_wheel)  # Windows/Mac
@@ -136,17 +151,19 @@ class InteractiveLabeler:
         instructions.pack(fill=tk.X, pady=(0, 10))
         instructions.insert('1.0', """INSTRUCTIONS:
 
-1. Click and drag on the image to select the region containing the page number
+1. Zoom: Use mouse wheel or zoom buttons to zoom in on page number
 
-2. Type the page number in the box below
+2. Pan: Right-click and drag to move zoomed image around
 
-3. Click "Save & Next" or press Enter
+3. Select: Left-click and drag to select region with page number
 
-4. Click "Skip" or press Space to skip this image
+4. Label: Type the page number in the box below
 
-5. When done, click "Finish Labeling" button
+5. Save: Click "Save & Next" or press Enter
 
-Tip: Label 20+ images for best ML accuracy!
+6. Skip: Click "Skip" or press Space
+
+Tip: Zoom 200-300%, pan to corner, select tight!
 """) 
         instructions.config(state=tk.DISABLED)
         
@@ -360,12 +377,14 @@ Tip: Label 20+ images for best ML accuracy!
         self.progress_label.config(text=f"Image {self.current_index + 1} of {len(self.image_files)}")
         self.progress_bar['value'] = self.current_index
         
-        # Reset selection and zoom
+        # Reset selection, zoom, and pan
         self.start_x = self.start_y = self.end_x = self.end_y = None
         self.selection_label.config(text="No region selected", foreground='red')
         self.label_entry.delete(0, tk.END)
         self.label_entry.focus()
         self.zoom_level = 1.0
+        self.pan_x = 0
+        self.pan_y = 0
         self.zoom_label.config(text="100%")
     
     def _apply_zoom(self, rgb_image):
@@ -445,8 +464,8 @@ Tip: Label 20+ images for best ML accuracy!
             canvas_height = 800
         
         img_width, img_height = self.pil_image.size
-        self.image_offset_x = max(0, (canvas_width - img_width) // 2)
-        self.image_offset_y = max(0, (canvas_height - img_height) // 2)
+        self.image_offset_x = max(0, (canvas_width - img_width) // 2) + self.pan_x
+        self.image_offset_y = max(0, (canvas_height - img_height) // 2) + self.pan_y
         
         # Update canvas
         self.image_canvas.delete("all")
@@ -494,6 +513,47 @@ Tip: Label 20+ images for best ML accuracy!
                 text=f"Selected: {width}x{height}px",
                 foreground='green'
             )
+    
+    def on_pan_start(self, event):
+        """Start panning with right-click or middle-click"""
+        self.panning = True
+        self.pan_start_x = event.x
+        self.pan_start_y = event.y
+        # Change cursor to indicate panning mode
+        self.image_canvas.config(cursor="fleur")
+    
+    def on_pan_drag(self, event):
+        """Pan the image while dragging"""
+        if self.panning:
+            # Calculate pan delta
+            delta_x = event.x - self.pan_start_x
+            delta_y = event.y - self.pan_start_y
+            
+            # Update pan offsets
+            self.pan_x += delta_x
+            self.pan_y += delta_y
+            
+            # Update start position for next drag event
+            self.pan_start_x = event.x
+            self.pan_start_y = event.y
+            
+            # Update image position on canvas
+            self.image_offset_x += delta_x
+            self.image_offset_y += delta_y
+            
+            # Move the image on canvas
+            if self.canvas_image_id:
+                self.image_canvas.coords(self.canvas_image_id, self.image_offset_x, self.image_offset_y)
+                
+                # Redraw selection if exists
+                if self.start_x is not None and self.end_x is not None:
+                    self.draw_selection()
+    
+    def on_pan_end(self, event):
+        """End panning"""
+        self.panning = False
+        # Reset cursor
+        self.image_canvas.config(cursor="")
     
     def draw_selection(self):
         """Draw selection rectangle on canvas"""
