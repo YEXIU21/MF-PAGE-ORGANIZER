@@ -58,10 +58,14 @@ class InteractiveLabeler:
         
         # Configure theme to avoid Accent.TButton pyimage1 errors
         style = ttk.Style(self.root)
+        print(f"[DEBUG] Available themes: {style.theme_names()}")
         try:
             style.theme_use('clam')  # Use clam theme (no Accent image requirements)
-        except:
+            print(f"[DEBUG] Theme set to: {style.theme_use()}")
+        except Exception as e:
+            print(f"[DEBUG] Failed to set clam theme: {e}")
             style.theme_use('default')
+            print(f"[DEBUG] Fallback theme set to: {style.theme_use()}")
         
         # Main frame
         main_frame = ttk.Frame(self.root)
@@ -157,6 +161,9 @@ class InteractiveLabeler:
         self.root.bind('<space>', lambda e: self.skip_image())
         self.root.bind('<Escape>', lambda e: self.on_close())
         
+        # Ensure window is fully initialized before loading images
+        self.root.update()
+        
         # Load first image
         self.load_current_image()
         self.update_stats_display()
@@ -193,8 +200,10 @@ class InteractiveLabeler:
         self.display_image = rgb_image.copy()
         
         # Convert to PIL and Tk
-        pil_image = Image.fromarray(rgb_image)
-        self.photo = ImageTk.PhotoImage(pil_image)
+        # CRITICAL: Keep both PIL and PhotoImage references to prevent garbage collection
+        self.pil_image = Image.fromarray(rgb_image)
+        self.photo = ImageTk.PhotoImage(self.pil_image)
+        self.photo.image = self.pil_image  # Keep extra reference to prevent GC
         self.image_label.config(image=self.photo)
         
         # Update info

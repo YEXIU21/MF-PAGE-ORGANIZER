@@ -362,6 +362,11 @@ class MFPageOrganizerApp:
         ttk.Button(button_frame, text="🎨 Theme", 
                   command=self.toggle_theme).pack(side=tk.LEFT, padx=(0, 10))
         
+        # ML Teaching button - allows users to retrain when they find unlearned images
+        if ML_AVAILABLE:
+            ttk.Button(button_frame, text="🎓 Teach ML", 
+                      command=self.start_teaching_mode_manual).pack(side=tk.LEFT, padx=(0, 10))
+        
         ttk.Button(button_frame, text="ℹ️ About", 
                   command=self.show_about).pack(side=tk.RIGHT)
         
@@ -1091,6 +1096,35 @@ All rights reserved.
                 if self.logger:
                     self.logger.warning(f"Failed to load ML model: {e}")
     
+    def start_teaching_mode_manual(self):
+        """Manually trigger teaching mode - for retraining or adding new patterns"""
+        if not self.model_manager:
+            messagebox.showinfo(
+                "ML Not Available",
+                "ML features are not available in this installation."
+            )
+            return
+        
+        # Show info dialog explaining manual teaching
+        result = messagebox.askyesno(
+            "Teach ML New Patterns",
+            "Use this when you find pages the ML hasn't learned yet.\n\n"
+            "📚 What happens:\n"
+            "• You'll select a folder with sample pages\n"
+            "• You'll click & drag to mark page numbers\n"
+            "• Label 20-50 examples for best results\n"
+            "• ML will be retrained with new patterns\n\n"
+            "⏱ Takes 15-20 minutes first time\n"
+            "After that: Process pages 10x faster!\n\n"
+            "Start teaching now?"
+        )
+        
+        if not result:
+            return
+        
+        # Call the main teaching workflow
+        self.start_teaching_mode()
+    
     def start_teaching_mode(self):
         """Start teaching mode workflow"""
         # Ask user to select sample images
@@ -1138,10 +1172,15 @@ All rights reserved.
             self.train_ml_model()
             
         except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"\n[ERROR] Teaching mode failed:")
+            print(error_trace)
             messagebox.showerror(
                 "Teaching Failed",
                 f"Teaching mode failed: {e}\n\n"
-                "You can try again from Settings menu."
+                "You can try again from Settings menu.\n\n"
+                f"Error details printed to console."
             )
     
     def train_ml_model(self):
