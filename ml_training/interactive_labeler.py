@@ -225,14 +225,15 @@ class InteractiveLabeler:
         self.display_image = rgb_image.copy()
         
         # Convert to PIL and Tk
-        # CRITICAL: Keep both PIL and PhotoImage references to prevent garbage collection
+        # MINIMAL TEST: Create and configure IMMEDIATELY
         self.pil_image = Image.fromarray(rgb_image)
-        self.photo = ImageTk.PhotoImage(self.pil_image)
-        self.photo.image = self.pil_image  # Keep extra reference to prevent GC
-        self._image_keeper.append(self.photo)  # Add to list - keeps ALL images!
-        self.image_label.image = self.photo  # CRITICAL: Keep reference on widget itself!
-        # Don't call update() - mainloop is running, config() will trigger redraw
-        self.image_label.config(image=self.photo)
+        photo = ImageTk.PhotoImage(self.pil_image)
+        self.image_label.config(image=photo)
+        # THEN keep references AFTER config
+        self.photo = photo
+        self.photo.image = self.pil_image
+        self._image_keeper.append(self.photo)
+        self.image_label.image = self.photo
         
         # Update info
         self.filename_label.config(text=image_path.name)
@@ -291,13 +292,15 @@ class InteractiveLabeler:
         cv2.rectangle(display_copy, (x1, y1), (x2, y2), (255, 0, 0), 2)
         
         # Convert and display
+        # MINIMAL TEST: Create and configure IMMEDIATELY
         pil_image = Image.fromarray(display_copy)
-        self.photo = ImageTk.PhotoImage(pil_image)
-        self.photo.image = pil_image  # Keep reference to prevent GC
-        self._image_keeper.append(self.photo)  # Add to list - keeps ALL images!
-        self.image_label.image = self.photo  # CRITICAL: Keep reference on widget!
-        # Don't call update() - mainloop is running, config() will trigger redraw
-        self.image_label.config(image=self.photo)
+        photo = ImageTk.PhotoImage(pil_image)
+        self.image_label.config(image=photo)
+        # THEN keep references AFTER config
+        self.photo = photo
+        self.photo.image = pil_image
+        self._image_keeper.append(self.photo)
+        self.image_label.image = self.photo
     
     def save_and_next(self):
         """Save current selection and move to next"""
