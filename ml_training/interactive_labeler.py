@@ -394,12 +394,18 @@ class InteractiveLabeler:
     def on_close(self):
         """Window closing"""
         if messagebox.askyesno("Quit?", "Are you sure you want to quit?\nProgress will be saved."):
-            # Save stats
-            stats_file = self.output_folder / "labeling_stats.json"
-            with open(stats_file, 'w') as f:
-                json.dump(self.stats, f, indent=2)
-            
-            self.root.destroy()
+            try:
+                # Save stats
+                stats_file = self.output_folder / "labeling_stats.json"
+                with open(stats_file, 'w') as f:
+                    json.dump(self.stats, f, indent=2)
+                print(f"[INFO] Stats saved to {stats_file}")
+            except Exception as e:
+                print(f"[WARNING] Failed to save stats: {e}")
+            finally:
+                # Ensure window closes even if stats save fails
+                self.root.quit()  # Exit mainloop
+                self.root.destroy()  # Destroy window
     
     def run(self):
         """Start the GUI"""
