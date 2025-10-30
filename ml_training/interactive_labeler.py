@@ -56,6 +56,13 @@ class InteractiveLabeler:
         self.root.title(f"Interactive Page Number Labeler - {len(self.image_files)} images")
         self.root.geometry("1400x900")
         
+        # Configure theme to avoid Accent.TButton pyimage1 errors
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use('clam')  # Use clam theme (no Accent image requirements)
+        except:
+            style.theme_use('default')
+        
         # Main frame
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)

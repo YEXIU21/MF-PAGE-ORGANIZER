@@ -50,6 +50,13 @@ class InteractiveCropper:
         self.root.title(f"Manual Crop Required - {len(problematic_pages)} Pages Need Review")
         self.root.geometry("1400x900")
         
+        # Configure theme to avoid Accent.TButton pyimage1 errors
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use('clam')  # Use clam theme (no Accent image requirements)
+        except:
+            style.theme_use('default')
+        
         # Create UI
         self._create_ui()
         
@@ -232,8 +239,8 @@ class InteractiveCropper:
         btn_frame.pack(fill=tk.X, padx=10, pady=10)
         
         ttk.Button(btn_frame, text="✓ Apply Crop to Selected Pages", 
-                  command=self._apply_crop,
-                  style="Accent.TButton").pack(fill=tk.X, pady=5)
+                  command=self._apply_crop).pack(fill=tk.X, pady=5)
+                  # Removed style='Accent.TButton' - caused pyimage1 error
         
         ttk.Button(btn_frame, text="⊗ Skip All (Use Auto-Crop)", 
                   command=self._skip_all).pack(fill=tk.X, pady=5)

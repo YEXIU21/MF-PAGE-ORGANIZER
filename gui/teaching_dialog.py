@@ -14,7 +14,7 @@ class TeachingDialog:
         self.parent = parent
         self.result = None  # 'teach', 'skip', or None (cancelled)
         
-        # Create dialog
+        # Create dialog first
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Welcome to Page Automation!")
         self.dialog.geometry("600x500")
@@ -142,6 +142,14 @@ def show_teaching_dialog(parent=None) -> str:
         # Create temporary root if needed
         root = tk.Tk()
         root.withdraw()
+        
+        # Configure theme for standalone root to avoid Accent.TButton errors
+        style = ttk.Style(root)
+        try:
+            style.theme_use('clam')
+        except:
+            style.theme_use('default')
+        
         parent = root
     
     dialog = TeachingDialog(parent)
