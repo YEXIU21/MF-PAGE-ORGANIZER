@@ -349,14 +349,14 @@ class MFPageOrganizerApp:
             value="paddle"
         ).pack(anchor=tk.W, pady=2)
         
-        ml_radio = ttk.Radiobutton(
+        self.ml_radio = ttk.Radiobutton(
             ocr_frame,
             text=f"ML Model (Custom - {ml_status_text})",
             variable=self.ocr_method_var,
             value="ml",
             state="normal" if ml_available else "disabled"
         )
-        ml_radio.pack(anchor=tk.W, pady=2)
+        self.ml_radio.pack(anchor=tk.W, pady=2)
         
         ttk.Radiobutton(
             ocr_frame,
@@ -1164,6 +1164,40 @@ All rights reserved.
                 if self.logger:
                     self.logger.warning(f"Failed to load ML model: {e}")
     
+    def update_ml_button_state(self):
+        """Update ML radio button state and text after training"""
+        if not hasattr(self, 'ml_radio'):
+            return
+        
+        try:
+            from core.model_manager import get_model_manager
+            manager = get_model_manager()
+            
+            if manager.model_exists():
+                # Model now available - enable button
+                model_info = manager.get_info()
+                if model_info and 'accuracy' in model_info:
+                    status_text = f"Accuracy: {model_info['accuracy']:.1f}%"
+                else:
+                    status_text = "Ready"
+                
+                self.ml_radio.config(
+                    text=f"ML Model (Custom - {status_text})",
+                    state="normal"
+                )
+                
+                if self.logger:
+                    self.logger.info("✅ ML option enabled in GUI")
+            else:
+                # Model not available
+                self.ml_radio.config(
+                    text="ML Model (Custom - Not trained yet)",
+                    state="disabled"
+                )
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"Failed to update ML button: {e}")
+    
     def start_teaching_mode_manual(self):
         """Manually trigger teaching mode - for retraining or adding new patterns"""
         if not self.model_manager:
@@ -1412,6 +1446,9 @@ All rights reserved.
                 # Reload model
                 if self.model_manager:
                     self.model_manager.load_model(force_reload=True)
+                
+                # Update GUI to enable ML option
+                self.root.after(200, self.update_ml_button_state)
                 
             except Exception as e:
                 progress.close()
