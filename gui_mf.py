@@ -320,6 +320,61 @@ class MFPageOrganizerApp:
         ttk.Checkbutton(format_frame, text="Include PDF", 
                        variable=self.include_pdf_var).pack(side=tk.LEFT, padx=(10, 0))
         
+        # OCR Method Selection
+        ocr_frame = ttk.LabelFrame(main_frame, text="🔍 OCR Method", padding="15")
+        ocr_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.ocr_method_var = tk.StringVar(value="paddle")
+        
+        # Check if ML model is available
+        ml_available = False
+        ml_status_text = "Not trained yet"
+        try:
+            from core.model_manager import get_model_manager
+            manager = get_model_manager()
+            if manager.model_exists():
+                ml_available = True
+                model_info = manager.get_info()
+                if model_info and 'accuracy' in model_info:
+                    ml_status_text = f"Accuracy: {model_info['accuracy']:.1f}%"
+                else:
+                    ml_status_text = "Ready"
+        except:
+            pass
+        
+        ttk.Radiobutton(
+            ocr_frame,
+            text="PaddleOCR (Default - Works on most documents)",
+            variable=self.ocr_method_var,
+            value="paddle"
+        ).pack(anchor=tk.W, pady=2)
+        
+        ml_radio = ttk.Radiobutton(
+            ocr_frame,
+            text=f"ML Model (Custom - {ml_status_text})",
+            variable=self.ocr_method_var,
+            value="ml",
+            state="normal" if ml_available else "disabled"
+        )
+        ml_radio.pack(anchor=tk.W, pady=2)
+        
+        ttk.Radiobutton(
+            ocr_frame,
+            text="Auto (Try ML first, fallback to PaddleOCR)",
+            variable=self.ocr_method_var,
+            value="auto"
+        ).pack(anchor=tk.W, pady=2)
+        
+        # Add explanatory text
+        ocr_info = ttk.Label(
+            ocr_frame,
+            text="💡 PaddleOCR works on all documents. ML Model requires training on your book styles.",
+            font=("Arial", 9),
+            foreground="gray",
+            wraplength=600
+        )
+        ocr_info.pack(anchor=tk.W, pady=(5, 0))
+        
         # Output section
         output_frame = ttk.LabelFrame(main_frame, text="💾 Save Results", padding="15")
         output_frame.pack(fill=tk.X, pady=(0, 10))
@@ -610,6 +665,18 @@ class MFPageOrganizerApp:
             }
             confidence = accuracy_levels.get(self.accuracy_var.get(), 85)
             config.set('default_settings.ocr_confidence_threshold', confidence)
+            
+            # Set OCR method
+            ocr_method = self.ocr_method_var.get()
+            config.set('processing.ocr_method', ocr_method)
+            self.log_message(f"🔍 OCR Method: {ocr_method.upper()}")
+            
+            if ocr_method == "ml":
+                self.log_message("   Using custom ML model for page number detection")
+            elif ocr_method == "paddle":
+                self.log_message("   Using PaddleOCR for text extraction")
+            elif ocr_method == "auto":
+                self.log_message("   Using Hybrid mode (ML with PaddleOCR fallback)")
             
             # Get input and output paths
             input_path = self.input_folder.get()

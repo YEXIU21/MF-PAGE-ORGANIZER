@@ -74,6 +74,9 @@ class OCREngine:
         # Initialize smart cache with output directory
         self.smart_cache = SmartCache(logger, output_dir)
         
+        # Get OCR method from config (default: paddle)
+        self.ocr_method = config.get('processing.ocr_method', 'paddle')
+        
         # Initialize PaddleOCR-based detector (BRILLIANT AI with existing modules)
         self.paddle_detector = PaddleNumberDetector(logger, lang='en')
         
@@ -82,6 +85,20 @@ class OCREngine:
         
         # Keep embedded OCR as fallback
         self.embedded_ocr = self.paddle_ocr
+        
+        # Initialize ML model predictor if needed
+        self.ml_predictor = None
+        if self.ocr_method in ['ml', 'auto']:
+            try:
+                from ml_training.model_predictor import ModelPredictor
+                self.ml_predictor = ModelPredictor()
+                self._log_info(f"✓ ML Model loaded successfully")
+            except Exception as e:
+                self._log_info(f"⚠ ML Model not available: {e}")
+                if self.ocr_method == 'ml':
+                    # If ML-only mode but model unavailable, fallback to paddle
+                    self._log_info("  Falling back to PaddleOCR")
+                    self.ocr_method = 'paddle'
         
         # Check for bundled Tesseract or system Tesseract
         self._initialize_tesseract()
@@ -266,20 +283,60 @@ class OCREngine:
                 self.logger.info(f"   Paddle detector exists: {self.paddle_detector is not None}")
                 self.logger.info(f"   Image loaded: {image.size}")
             
-            # PRIORITY FIX: Use EXISTING paddle detector (already has API fix)
-            # This prevents content numbers from polluting the results
-            ai_candidate = self.paddle_detector.detect_page_number(
-                image, "", str(page_info.file_path), total_pages=total_pages
-            )
+            # Select detection method based on configuration
+            ai_candidate = None
             
-            if self.logger:
-                self.logger.info(f"✅ ADVANCED DETECTOR RETURNED: {ai_candidate}")
+            if self.ocr_method == 'ml' and self.ml_predictor:
+                # ML Model only
+                try:
+                    ml_result = self.ml_predictor.predict(image)
+                    if ml_result and ml_result.get('confidence', 0) > 0.5:
+                        ai_candidate = type('obj', (object,), {
+                            'text': str(ml_result.get('number', '')),
+                            'number': ml_result.get('number', 0),
+                            'confidence': ml_result.get('confidence', 0) * 100,
+                            'bbox': ml_result.get('bbox', (0, 0, 100, 30)),
+                            'reasoning': ['ML Model prediction']
+                        })()
+                        if self.logger:
+                            self.logger.debug(f"🤖 ML Model found: {ai_candidate.text} (confidence: {ai_candidate.confidence:.1f}%)")
+                except Exception as e:
+                    if self.logger:
+                        self.logger.warning(f"ML prediction failed: {e}")
             
-            if self.logger:
-                if ai_candidate:
-                    self.logger.debug(f"🎯 Advanced detector found: {ai_candidate.number} (confidence: {ai_candidate.confidence}%)")
-                else:
-                    self.logger.debug(f"❌ Advanced detector found nothing")
+            elif self.ocr_method == 'auto':
+                # Try ML first, fallback to Paddle
+                if self.ml_predictor:
+                    try:
+                        ml_result = self.ml_predictor.predict(image)
+                        if ml_result and ml_result.get('confidence', 0) > 0.7:  # Higher threshold for auto mode
+                            ai_candidate = type('obj', (object,), {
+                                'text': str(ml_result.get('number', '')),
+                                'number': ml_result.get('number', 0),
+                                'confidence': ml_result.get('confidence', 0) * 100,
+                                'bbox': ml_result.get('bbox', (0, 0, 100, 30)),
+                                'reasoning': ['ML Model (Auto mode)']
+                            })()
+                            if self.logger:
+                                self.logger.debug(f"🤖 ML Model (Auto): {ai_candidate.text} (confidence: {ai_candidate.confidence:.1f}%)")
+                    except Exception as e:
+                        if self.logger:
+                            self.logger.debug(f"ML failed, falling back to PaddleOCR: {e}")
+                
+                # If ML didn't find high-confidence result, use Paddle
+                if not ai_candidate:
+                    ai_candidate = self.paddle_detector.detect_page_number(
+                        image, "", str(page_info.file_path), total_pages=total_pages
+                    )
+                    if self.logger and ai_candidate:
+                        self.logger.debug(f"🎯 PaddleOCR (Fallback): {ai_candidate.text}")
+            else:
+                # PaddleOCR (default)
+                ai_candidate = self.paddle_detector.detect_page_number(
+                    image, "", str(page_info.file_path), total_pages=total_pages
+                )
+                if self.logger and ai_candidate:
+                    self.logger.debug(f"🎯 PaddleOCR found: {ai_candidate.text} (confidence: {ai_candidate.confidence:.1f}%)")
             
             if ai_candidate and ai_candidate.confidence > 50:
                 # Convert AI candidate to DetectedNumber format
