@@ -320,9 +320,9 @@ class MFPageOrganizerApp:
         ttk.Checkbutton(format_frame, text="Include PDF", 
                        variable=self.include_pdf_var).pack(side=tk.LEFT, padx=(10, 0))
         
-        # OCR Method Selection (in right column)
-        ocr_label_frame = ttk.LabelFrame(right_column, text="🔍 OCR Method", padding="10")
-        ocr_label_frame.pack(fill=tk.X, pady=(0, 0))
+        # OCR Method Selection (separate section below Processing Options)
+        ocr_label_frame = ttk.LabelFrame(main_frame, text="🔍 OCR Method", padding="15")
+        ocr_label_frame.pack(fill=tk.X, pady=(0, 10))
         
         self.ocr_method_var = tk.StringVar(value="paddle")
         
@@ -369,9 +369,9 @@ class MFPageOrganizerApp:
         ocr_info = ttk.Label(
             ocr_label_frame,
             text="💡 ML requires training. PaddleOCR works universally.",
-            font=("Arial", 8),
+            font=("Arial", 9),
             foreground="gray",
-            wraplength=280
+            wraplength=900
         )
         ocr_info.pack(anchor=tk.W, pady=(5, 0))
         
