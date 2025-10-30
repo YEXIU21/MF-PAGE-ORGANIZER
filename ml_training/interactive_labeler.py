@@ -67,6 +67,14 @@ class InteractiveLabeler:
             style.theme_use('default')
             print(f"[DEBUG] Fallback theme set to: {style.theme_use()}")
         
+        # NUCLEAR FIX: Pre-initialize tkinter's image system
+        import numpy as np
+        dummy_array = np.zeros((10, 10, 3), dtype=np.uint8)
+        dummy_pil = Image.fromarray(dummy_array)
+        self._dummy_photo = ImageTk.PhotoImage(dummy_pil)
+        self.root._dummy_keep = self._dummy_photo  # Keep reference
+        print("[DEBUG] Tkinter image system pre-initialized")
+        
         # Main frame
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
