@@ -205,6 +205,7 @@ class InteractiveLabeler:
         self.photo = ImageTk.PhotoImage(self.pil_image)
         self.photo.image = self.pil_image  # Keep extra reference to prevent GC
         self.image_label.image = self.photo  # CRITICAL: Keep reference on widget itself!
+        self.image_label.update()  # Force tkinter to process the reference!
         self.image_label.config(image=self.photo)
         
         # Update info
@@ -268,6 +269,7 @@ class InteractiveLabeler:
         self.photo = ImageTk.PhotoImage(pil_image)
         self.photo.image = pil_image  # Keep reference to prevent GC
         self.image_label.image = self.photo  # CRITICAL: Keep reference on widget!
+        self.image_label.update()  # Force tkinter to process the reference!
         self.image_label.config(image=self.photo)
     
     def save_and_next(self):
