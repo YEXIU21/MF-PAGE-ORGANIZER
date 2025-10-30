@@ -102,7 +102,7 @@ class OCREngine:
             # Try to get version
             pytesseract.get_tesseract_version()
             return True
-        except:
+        except Exception:
             return False
     
     def _initialize_tesseract(self):
@@ -127,8 +127,8 @@ class OCREngine:
                 self.tesseract_available = True
                 self._log_info("Using system Tesseract installation")
                 return
-            except:
-                pass
+            except Exception:
+                pass  # Try other paths
             
             # Try common installation paths
             common_paths = [
@@ -146,8 +146,8 @@ class OCREngine:
                         self.tesseract_path = path
                         self._log_info(f"Found Tesseract at: {path}")
                         return
-                    except:
-                        continue
+                    except Exception:
+                        continue  # Try next path
                         
         except Exception as e:
             self._log_warning(f"Could not initialize Tesseract: {e}")
@@ -658,7 +658,7 @@ class OCREngine:
             
             return total if total > 0 else None
             
-        except:
-            return None
+        except Exception:
+            return None  # OCR failed
 
 # OCREngine class is defined above - no alias needed

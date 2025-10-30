@@ -40,7 +40,7 @@ class ModelManager:
         try:
             with open(self.info_path, 'r') as f:
                 return json.load(f)
-        except:
+        except (FileNotFoundError, json.JSONDecodeError):
             return None
     
     def load_model(self, force_reload: bool = False):

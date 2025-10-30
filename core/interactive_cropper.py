@@ -54,7 +54,7 @@ class InteractiveCropper:
         style = ttk.Style(self.root)
         try:
             style.theme_use('clam')  # Use clam theme (no Accent image requirements)
-        except:
+        except tk.TclError:
             style.theme_use('default')
         
         # Create UI

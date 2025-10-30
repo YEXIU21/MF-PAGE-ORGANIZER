@@ -137,8 +137,8 @@ class SplashScreen:
             if self.is_root:
                 self.root.quit()  # Exit mainloop if this is root
             self.root.destroy()  # Destroy window
-        except:
-            pass
+        except tk.TclError:
+            pass  # Window already destroyed
     
     def show(self):
         """Show splash screen"""

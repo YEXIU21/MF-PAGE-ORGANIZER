@@ -43,8 +43,8 @@ class SmartCache:
             try:
                 with open(self.cache_index_file, 'r') as f:
                     return json.load(f)
-            except:
-                return {}
+            except (FileNotFoundError, json.JSONDecodeError):
+                return {}  # Cache index missing or corrupted
         return {}
     
     def _save_cache_index(self):
@@ -63,8 +63,8 @@ class SmartCache:
             stat = os.stat(image_path)
             hash_input = f"{image_path}_{stat.st_size}_{stat.st_mtime}"
             return hashlib.md5(hash_input.encode()).hexdigest()
-        except:
-            # Fallback: hash the file path only
+        except OSError:
+            # Fallback: hash the file path only if stat fails
             return hashlib.md5(image_path.encode()).hexdigest()
     
     def get_cached_result(self, image_hash: str, result_type: str = 'ocr') -> Optional[Any]:
@@ -150,8 +150,8 @@ class SmartCache:
                     # Remove from index
                     del self.cache_index[cache_key]
                     removed += 1
-            except:
-                pass
+            except (OSError, KeyError):
+                pass  # File already removed or key doesn't exist
         
         if removed > 0:
             self._save_cache_index()

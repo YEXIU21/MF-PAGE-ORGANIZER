@@ -59,12 +59,12 @@ class MFPageOrganizerApp:
                 time.sleep(4)  # Wait 4 seconds
                 try:
                     pyi_splash.close()
-                except:
-                    pass  # Already closed
+                except Exception:
+                    pass  # Already closed or not available
             
             # Start timeout thread
             threading.Thread(target=close_splash_after_timeout, daemon=True).start()
-        except:
+        except ImportError:
             pass  # Not running as EXE with image splash
         
         # Set AppUserModelID for Windows 11 taskbar icon
@@ -72,7 +72,7 @@ class MFPageOrganizerApp:
             import ctypes
             myappid = 'YEXIU.MFPageOrganizer.GUI.1.0'
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-        except:
+        except (AttributeError, OSError):
             pass  # Not on Windows or failed
         
         # Theme management (will be applied after UI is built)
@@ -119,8 +119,9 @@ class MFPageOrganizerApp:
         if ML_AVAILABLE:
             try:
                 self.model_manager = get_model_manager()
-            except:
-                pass  # ML not critical
+            except Exception as e:
+                print(f"[WARNING] ML model manager initialization failed: {e}")
+                self.model_manager = None
         
         # Initialize variables
         self.input_folder = tk.StringVar()
@@ -703,11 +704,11 @@ class MFPageOrganizerApp:
             if result:
                 try:
                     os.startfile(output_path)  # Windows
-                except:
+                except (OSError, AttributeError):
                     try:
                         import subprocess
                         subprocess.run(['open', output_path])  # macOS
-                    except:
+                    except (OSError, FileNotFoundError):
                         subprocess.run(['xdg-open', output_path])  # Linux
         else:
             self.status_label.config(text="❌ Processing failed")
@@ -744,7 +745,7 @@ class MFPageOrganizerApp:
             key = winreg.OpenKey(registry, r'SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize')
             value, _ = winreg.QueryValueEx(key, 'AppsUseLightTheme')
             self.system_is_dark = (value == 0)
-        except:
+        except (OSError, ImportError, AttributeError):
             self.system_is_dark = False  # Default to light if can't detect
     
     def apply_theme(self):
@@ -762,7 +763,7 @@ class MFPageOrganizerApp:
         # IMPORTANT: Use the SAME base theme for both light and dark to prevent size changes
         try:
             style.theme_use('clam')  # Use clam for both themes
-        except:
+        except tk.TclError:
             style.theme_use('default')
         
         if is_dark:
@@ -950,8 +951,8 @@ All rights reserved.
             self.log_text.insert(tk.END, text)
             self.log_text.see(tk.END)
             self.log_text.config(state=tk.DISABLED)
-        except:
-            pass
+        except tk.TclError:
+            pass  # Widget destroyed or not available
     
     def _run_startup_diagnostics(self):
         """Run startup diagnostics and display in log"""
@@ -1037,8 +1038,8 @@ All rights reserved.
                 else:
                     log(f"❌ PaddleOCR: NOT INSTALLED")
                     deps_ok = False
-            except:
-                log(f"⚠️  PaddleOCR: Check failed (assuming available)")
+            except Exception as e:
+                log(f"⚠️  PaddleOCR: Check failed ({e}) - assuming available")
                 # Don't fail - assume it's available
         
         try:
@@ -1062,8 +1063,8 @@ All rights reserved.
             cpu_cores = psutil.cpu_count()
             log(f"✓ System RAM: {ram_gb:.1f} GB ({available_ram_gb:.1f} GB available)")
             log(f"✓ CPU Cores: {cpu_cores}")
-        except:
-            log(f"⚠ Could not detect system resources")
+        except Exception as e:
+            log(f"⚠ Could not detect system resources: {e}")
         
         log("=" * 70)
         if deps_ok:

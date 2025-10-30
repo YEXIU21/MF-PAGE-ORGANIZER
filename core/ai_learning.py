@@ -26,7 +26,7 @@ class AILearningSystem:
             try:
                 with open(self.learning_file, 'r') as f:
                     return json.load(f)
-            except:
+            except (FileNotFoundError, json.JSONDecodeError):
                 return self._create_default_learning_data()
         return self._create_default_learning_data()
     

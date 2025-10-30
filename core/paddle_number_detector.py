@@ -86,8 +86,8 @@ class PaddleNumberDetector:
                             os.makedirs(os.path.dirname(paddlex_version_file), exist_ok=True)
                             with open(paddlex_version_file, 'w') as f:
                                 f.write('3.0.0')  # Default version
-                        except:
-                            pass  # Ignore if we can't create it
+                        except (OSError, IOError):
+                            pass  # Ignore if we can't create version file
                 
                 from paddleocr import PaddleOCR
             
@@ -173,8 +173,8 @@ class PaddleNumberDetector:
         try:
             import paddle
             return paddle.is_compiled_with_cuda()
-        except:
-            return False
+        except Exception:
+            return False  # Paddle not available or no CUDA
     
     def detect_page_number(self, image: Image.Image, ocr_text: str, filename: str, position: int = None, total_pages: int = None) -> Optional[NumberCandidate]:
         """Main detection method - scans corners for page numbers"""
@@ -970,8 +970,8 @@ class PaddleNumberDetector:
                 prev_value = value
             
             return total if total > 0 else None
-        except:
-            return None
+        except Exception:
+            return None  # Invalid roman numeral
     
     def log_stats(self):
         """Log detector statistics"""

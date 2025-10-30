@@ -428,8 +428,8 @@ class ContentAnalyzer:
                 prev_value = value
             
             return total if total > 0 else None
-        except:
-            return None
+        except Exception:
+            return None  # Invalid roman numeral
     
     def _analyze_references(self, page_a: Dict, page_b: Dict) -> Optional[ContentRelationship]:
         """Analyze cross-references between pages"""

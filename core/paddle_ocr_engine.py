@@ -115,8 +115,8 @@ class PaddleOCREngine:
         try:
             import paddle
             return paddle.is_compiled_with_cuda()
-        except:
-            return False
+        except Exception:
+            return False  # Paddle not available or no CUDA
     
     def extract_text(self, image: Image.Image) -> str:
         """Extract all text from image"""
@@ -224,5 +224,5 @@ class PaddleOCREngine:
                 prev_value = value
             
             return total if total > 0 else None
-        except:
-            return None
+        except Exception:
+            return None  # Invalid roman numeral

@@ -258,7 +258,7 @@ class InputHandler:
                         with open(input_path, 'rb') as file:
                             pdf_reader = PyPDF2.PdfReader(file)
                             result['estimated_pages'] = len(pdf_reader.pages)
-                    except:
+                    except Exception:
                         result['estimated_pages'] = 1
                 else:
                     result['estimated_pages'] = 1
@@ -280,7 +280,7 @@ class InputHandler:
                                 with open(file_path, 'rb') as file:
                                     pdf_reader = PyPDF2.PdfReader(file)
                                     result['estimated_pages'] += len(pdf_reader.pages)
-                            except:
+                            except Exception:
                                 result['estimated_pages'] += 1
                         else:
                             result['estimated_pages'] += 1
@@ -329,7 +329,7 @@ class InputHandler:
                             with open(file_path, 'rb') as file:
                                 pdf_reader = PyPDF2.PdfReader(file)
                                 info['estimated_pages'] = len(pdf_reader.pages)
-                        except:
+                        except Exception:
                             info['estimated_pages'] = 1
             else:
                 info['error'] = "File does not exist"

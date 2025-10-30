@@ -388,8 +388,8 @@ class MemorySystem:
             # Similar if numbers are close
             try:
                 return abs(int(nums1[0]) - int(nums2[0])) <= 3
-            except:
-                pass
+            except (ValueError, IndexError):
+                pass  # Can't compare as numbers
         
         return False
     

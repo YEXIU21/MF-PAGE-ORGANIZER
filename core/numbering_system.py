@@ -865,8 +865,8 @@ class NumberingSystem:
                                     # Return tuple: (confidence, filename_match_bonus)
                                     # Higher confidence wins, then filename match wins
                                     return (-decision.confidence, not filename_matches)
-                    except:
-                        pass
+                    except Exception:
+                        pass  # Use default sorting
                     return (-decision.confidence, True)  # Default: just use confidence
                 
                 group.sort(key=sort_key)

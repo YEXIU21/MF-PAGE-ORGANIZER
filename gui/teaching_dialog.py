@@ -147,7 +147,7 @@ def show_teaching_dialog(parent=None) -> str:
         style = ttk.Style(root)
         try:
             style.theme_use('clam')
-        except:
+        except tk.TclError:
             style.theme_use('default')
         
         parent = root

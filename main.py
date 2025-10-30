@@ -712,8 +712,8 @@ class PageReorderCLI:
             
             if available_ram_gb < 2:
                 warnings.append(f"Low available RAM ({available_ram_gb:.1f} GB)")
-        except:
-            warnings.append("Could not detect system resources")
+        except Exception as e:
+            warnings.append(f"Could not detect system resources: {e}")
         
         # Final summary
         self.logger.info("")
