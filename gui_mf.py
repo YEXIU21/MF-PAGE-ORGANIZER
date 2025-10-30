@@ -205,13 +205,16 @@ class MFPageOrganizerApp:
         ttk.Label(input_frame, text="Supported: PDF, PNG, JPG, TIFF files", 
                  font=("Arial", 9), foreground="gray").pack(anchor=tk.W)
         
-        # Settings section with two-column layout
+        # Settings section with three-column layout
         settings_frame = ttk.LabelFrame(main_frame, text="⚙️ Processing Options", padding="15")
         settings_frame.pack(fill=tk.X, pady=(0, 10))
         
-        # Create two columns
+        # Create three columns
         left_column = ttk.Frame(settings_frame)
         left_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        
+        middle_column = ttk.Frame(settings_frame)
+        middle_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
         
         right_column = ttk.Frame(settings_frame)
         right_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -264,9 +267,9 @@ class MFPageOrganizerApp:
                                      state="readonly", width=15)
         accuracy_combo.pack(side=tk.LEFT, padx=(10, 0))
         
-        # RIGHT COLUMN
+        # MIDDLE COLUMN
         # Dark circle cleanup feature
-        clean_frame = ttk.Frame(right_column)
+        clean_frame = ttk.Frame(middle_column)
         clean_frame.pack(fill=tk.X, pady=(0, 10))
         
         ttk.Label(clean_frame, text="Clean dirty pages:").pack(side=tk.LEFT)
@@ -275,7 +278,7 @@ class MFPageOrganizerApp:
                        variable=self.clean_circles_var).pack(side=tk.LEFT, padx=(10, 0))
         
         # Blank page removal
-        blank_frame = ttk.Frame(right_column)
+        blank_frame = ttk.Frame(middle_column)
         blank_frame.pack(fill=tk.X, pady=(0, 10))
         
         ttk.Label(blank_frame, text="Remove blank pages:").pack(side=tk.LEFT)
@@ -286,7 +289,7 @@ class MFPageOrganizerApp:
         blank_combo.pack(side=tk.LEFT, padx=(10, 0))
         
         # Blank page orientation fix
-        blank_orient_frame = ttk.Frame(right_column)
+        blank_orient_frame = ttk.Frame(middle_column)
         blank_orient_frame.pack(fill=tk.X, pady=(0, 10))
         
         ttk.Label(blank_orient_frame, text="Blank page orientation:").pack(side=tk.LEFT)
@@ -295,7 +298,7 @@ class MFPageOrganizerApp:
                        variable=self.blank_portrait_var).pack(side=tk.LEFT, padx=(10, 0))
         
         # PDF compression
-        compress_frame = ttk.Frame(right_column)
+        compress_frame = ttk.Frame(middle_column)
         compress_frame.pack(fill=tk.X, pady=(0, 10))
         
         ttk.Label(compress_frame, text="PDF compression:").pack(side=tk.LEFT)
@@ -304,7 +307,7 @@ class MFPageOrganizerApp:
                        variable=self.compress_var).pack(side=tk.LEFT, padx=(10, 0))
         
         # Output format selection
-        format_frame = ttk.Frame(right_column)
+        format_frame = ttk.Frame(middle_column)
         format_frame.pack(fill=tk.X, pady=(0, 10))
         
         ttk.Label(format_frame, text="Output image format:").pack(side=tk.LEFT)
@@ -320,9 +323,9 @@ class MFPageOrganizerApp:
         ttk.Checkbutton(format_frame, text="Include PDF", 
                        variable=self.include_pdf_var).pack(side=tk.LEFT, padx=(10, 0))
         
-        # OCR Method Selection (separate section below Processing Options)
-        ocr_label_frame = ttk.LabelFrame(main_frame, text="🔍 OCR Method", padding="15")
-        ocr_label_frame.pack(fill=tk.X, pady=(0, 10))
+        # RIGHT COLUMN - OCR Method
+        ocr_title = ttk.Label(right_column, text="🔍 OCR Method", font=("Arial", 10, "bold"))
+        ocr_title.pack(anchor=tk.W, pady=(0, 10))
         
         self.ocr_method_var = tk.StringVar(value="paddle")
         
@@ -343,14 +346,14 @@ class MFPageOrganizerApp:
             pass
         
         ttk.Radiobutton(
-            ocr_label_frame,
+            right_column,
             text="PaddleOCR (Default)",
             variable=self.ocr_method_var,
             value="paddle"
         ).pack(anchor=tk.W, pady=2)
         
         self.ml_radio = ttk.Radiobutton(
-            ocr_label_frame,
+            right_column,
             text=f"ML Model ({ml_status_text})",
             variable=self.ocr_method_var,
             value="ml",
@@ -359,7 +362,7 @@ class MFPageOrganizerApp:
         self.ml_radio.pack(anchor=tk.W, pady=2)
         
         ttk.Radiobutton(
-            ocr_label_frame,
+            right_column,
             text="Auto (ML → PaddleOCR)",
             variable=self.ocr_method_var,
             value="auto"
@@ -367,11 +370,12 @@ class MFPageOrganizerApp:
         
         # Add explanatory text
         ocr_info = ttk.Label(
-            ocr_label_frame,
-            text="💡 ML requires training. PaddleOCR works universally.",
-            font=("Arial", 9),
+            right_column,
+            text="💡 ML requires training.\nPaddleOCR works universally.",
+            font=("Arial", 8),
             foreground="gray",
-            wraplength=900
+            wraplength=250,
+            justify=tk.LEFT
         )
         ocr_info.pack(anchor=tk.W, pady=(5, 0))
         
