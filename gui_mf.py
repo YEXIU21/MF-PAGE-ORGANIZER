@@ -1173,6 +1173,35 @@ All rights reserved.
             )
             return
         
+        # Check if labeled data already exists
+        from pathlib import Path
+        corners_dir = Path("ml_training/manual_training_data/corners")
+        existing_labels = []
+        if corners_dir.exists():
+            # Count existing labeled images
+            for label_folder in corners_dir.iterdir():
+                if label_folder.is_dir():
+                    images = list(label_folder.glob("*.jpg")) + list(label_folder.glob("*.png"))
+                    if images:
+                        existing_labels.append((label_folder.name, len(images)))
+        
+        if existing_labels:
+            # User has existing labeled data
+            total_images = sum(count for _, count in existing_labels)
+            result = messagebox.askyesno(
+                "Existing Training Data Found",
+                f"Found {total_images} labeled images from previous session!\n\n"
+                f"Do you want to TRAIN using existing data?\n\n"
+                f"Yes = Train immediately (5-10 min)\n"
+                f"No = Label more images first"
+            )
+            
+            if result:
+                # Train on existing data
+                self.train_ml_model()
+                return
+            # If No, continue to labeling workflow below
+        
         # Show info dialog explaining manual teaching
         result = messagebox.askyesno(
             "Teach ML New Patterns",
