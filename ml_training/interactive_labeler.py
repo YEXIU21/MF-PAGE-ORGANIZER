@@ -175,7 +175,11 @@ class InteractiveLabeler:
         # Ensure window is fully initialized before loading images
         self.root.update()
         
-        # Load first image
+        # Schedule image loading to run AFTER mainloop starts (critical for PhotoImage)
+        self.root.after(100, self._delayed_load)
+    
+    def _delayed_load(self):
+        """Load first image after mainloop has started"""
         self.load_current_image()
         self.update_stats_display()
     
