@@ -134,7 +134,7 @@ class InteractiveLabeler:
 
 4. Click "Skip" or press Space to skip this image
 
-5. When done labeling, click "Finish & Train" button
+5. When done, click "Finish Labeling" button
 
 Tip: Label 20+ images for best ML accuracy!
 """) 
@@ -194,7 +194,7 @@ Tip: Label 20+ images for best ML accuracy!
         # Finish button - allows user to stop and proceed to training
         self.finish_button = ttk.Button(
             button_frame, 
-            text="🎯 Finish & Train", 
+            text="✅ Finish Labeling", 
             command=self.finish_labeling,
             style='Accent.TButton'
         )
@@ -509,10 +509,11 @@ Tip: Label 20+ images for best ML accuracy!
         # Confirm finish
         result = messagebox.askyesno(
             "Finish Labeling?",
-            f"Ready to finish and train the model?\n\n"
+            f"Save and finish labeling?\n\n"
             f"✓ Labeled: {self.stats['total_labeled']} images\n"
             f"✓ Unique labels: {len(self.stats['labels_created'])}\n\n"
-            f"Training will start after you click Yes."
+            f"After this, train the model from the main app\n"
+            f"(Settings → Train ML Model)"
         )
         
         if result:
@@ -524,7 +525,7 @@ Tip: Label 20+ images for best ML accuracy!
             messagebox.showinfo(
                 "Labeling Complete!",
                 f"✅ Saved {self.stats['total_labeled']} labeled images\n\n"
-                f"Training will start now..."
+                f"Next step: Train the model from Settings menu"
             )
             
             self.root.destroy()
