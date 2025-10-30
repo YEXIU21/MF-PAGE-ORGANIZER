@@ -63,11 +63,26 @@ class QuickTrainer:
         # Add channel dimension
         X = np.expand_dims(X, -1)
         
+        # Check class distribution
+        from collections import Counter
+        class_counts = Counter(y)
+        min_samples = min(class_counts.values())
+        
         # Split into train/validation (80/20)
         from sklearn.model_selection import train_test_split
-        X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
+        
+        # Only use stratify if all classes have at least 2 samples
+        if min_samples >= 2:
+            X_train, X_val, y_train, y_val = train_test_split(
+                X, y, test_size=0.2, random_state=42, stratify=y
+            )
+        else:
+            # Some classes have only 1 sample - can't use stratify
+            print(f"   ⚠ Warning: Some classes have only {min_samples} sample(s)")
+            print(f"   Skipping stratified split (validation split may be unbalanced)")
+            X_train, X_val, y_train, y_val = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
         
         print(f"   Train set: {len(X_train)} images")
         print(f"   Validation set: {len(X_val)} images")

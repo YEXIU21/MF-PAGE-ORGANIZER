@@ -1420,7 +1420,7 @@ All rights reserved.
                     "Training Failed",
                     f"Model training failed: {msg}\n\n"
                     "Will use PaddleOCR instead.\n\n"
-                    "You can try teaching again from Settings menu."
+                    "Click '🎓 Teach ML' button to try again."
                 ))
         
         # Start training thread
