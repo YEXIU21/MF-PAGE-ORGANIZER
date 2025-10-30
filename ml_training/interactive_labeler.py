@@ -512,8 +512,7 @@ Tip: Label 20+ images for best ML accuracy!
             f"Save and finish labeling?\n\n"
             f"✓ Labeled: {self.stats['total_labeled']} images\n"
             f"✓ Unique labels: {len(self.stats['labels_created'])}\n\n"
-            f"After this, train the model from the main app\n"
-            f"(Settings → Train ML Model)"
+            f"Data will be saved to ml_training/manual_training_data/"
         )
         
         if result:
@@ -525,7 +524,8 @@ Tip: Label 20+ images for best ML accuracy!
             messagebox.showinfo(
                 "Labeling Complete!",
                 f"✅ Saved {self.stats['total_labeled']} labeled images\n\n"
-                f"Next step: Train the model from Settings menu"
+                f"Data saved to: ml_training/manual_training_data/\n\n"
+                f"Return to main app and processing will work!"
             )
             
             self.root.destroy()

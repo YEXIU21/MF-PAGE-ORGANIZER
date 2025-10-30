@@ -1253,14 +1253,15 @@ All rights reserved.
                 f"Train the ML model now?\n\n"
                 f"Note: Training requires TensorFlow installed\n"
                 f"and takes 5-10 minutes.\n\n"
-                f"Click 'No' to train later from Settings menu."
+                f"Click 'No' to train later."
             )
             
             if not result:
                 messagebox.showinfo(
                     "Training Postponed",
-                    "You can train the model later from:\n"
-                    "Settings → Train ML Model"
+                    "Training data is saved.\n\n"
+                    "To train later: Click '🎓 Teach ML' button again,\n"
+                    "select the same folder, then train."
                 )
                 return
             
