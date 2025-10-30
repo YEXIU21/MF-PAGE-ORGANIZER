@@ -104,10 +104,14 @@ class OCREngine:
         
         self._ml_predictor_attempted = True
         try:
-            from ml_training.model_predictor import ModelPredictor
-            self.ml_predictor = ModelPredictor()
-            self._log_info(f"✓ ML Model loaded successfully")
-            return True
+            from ml_training.model_predictor import PageNumberPredictor
+            self.ml_predictor = PageNumberPredictor()
+            if self.ml_predictor.load_model():
+                self._log_info(f"✓ ML Model loaded successfully")
+                return True
+            else:
+                self._log_info(f"⚠ ML Model file not found")
+                return False
         except Exception as e:
             self._log_info(f"⚠ ML Model not available: {e}")
             if self.ocr_method == 'ml':
