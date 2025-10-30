@@ -1246,6 +1246,24 @@ All rights reserved.
             labeler = InteractiveLabeler(folder)
             labeler.run()  # Blocks until done
             
+            # Ask if user wants to train now or later
+            result = messagebox.askyesno(
+                "Training Data Ready",
+                f"✅ Labeled {labeler.stats['total_labeled']} images successfully!\n\n"
+                f"Train the ML model now?\n\n"
+                f"Note: Training requires TensorFlow installed\n"
+                f"and takes 5-10 minutes.\n\n"
+                f"Click 'No' to train later from Settings menu."
+            )
+            
+            if not result:
+                messagebox.showinfo(
+                    "Training Postponed",
+                    "You can train the model later from:\n"
+                    "Settings → Train ML Model"
+                )
+                return
+            
             # Check if user labeled enough images
             if labeler.stats['total_labeled'] < 10:
                 if not messagebox.askyesno(
