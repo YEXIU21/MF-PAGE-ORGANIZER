@@ -86,19 +86,9 @@ class OCREngine:
         # Keep embedded OCR as fallback
         self.embedded_ocr = self.paddle_ocr
         
-        # Initialize ML model predictor if needed
+        # ML model predictor - lazy loaded only when actually used
         self.ml_predictor = None
-        if self.ocr_method in ['ml', 'auto']:
-            try:
-                from ml_training.model_predictor import ModelPredictor
-                self.ml_predictor = ModelPredictor()
-                self._log_info(f"✓ ML Model loaded successfully")
-            except Exception as e:
-                self._log_info(f"⚠ ML Model not available: {e}")
-                if self.ocr_method == 'ml':
-                    # If ML-only mode but model unavailable, fallback to paddle
-                    self._log_info("  Falling back to PaddleOCR")
-                    self.ocr_method = 'paddle'
+        self._ml_predictor_attempted = False
         
         # Check for bundled Tesseract or system Tesseract
         self._initialize_tesseract()
@@ -106,6 +96,25 @@ class OCREngine:
         # If no Tesseract, use embedded OCR
         if not self.tesseract_available:
             self._log_info("Using embedded OCR engine (no external installation required)")
+    
+    def _load_ml_predictor(self):
+        """Lazy load ML predictor only when needed"""
+        if self._ml_predictor_attempted:
+            return self.ml_predictor is not None
+        
+        self._ml_predictor_attempted = True
+        try:
+            from ml_training.model_predictor import ModelPredictor
+            self.ml_predictor = ModelPredictor()
+            self._log_info(f"✓ ML Model loaded successfully")
+            return True
+        except Exception as e:
+            self._log_info(f"⚠ ML Model not available: {e}")
+            if self.ocr_method == 'ml':
+                # If ML-only mode but model unavailable, fallback to paddle
+                self._log_info("  Falling back to PaddleOCR")
+                self.ocr_method = 'paddle'
+            return False
     
     def _is_roman_numeral(self, text: str) -> bool:
         """Check if text is a valid roman numeral"""
@@ -286,27 +295,28 @@ class OCREngine:
             # Select detection method based on configuration
             ai_candidate = None
             
-            if self.ocr_method == 'ml' and self.ml_predictor:
-                # ML Model only
-                try:
-                    ml_result = self.ml_predictor.predict(image)
-                    if ml_result and ml_result.get('confidence', 0) > 0.5:
-                        ai_candidate = type('obj', (object,), {
-                            'text': str(ml_result.get('number', '')),
-                            'number': ml_result.get('number', 0),
-                            'confidence': ml_result.get('confidence', 0) * 100,
-                            'bbox': ml_result.get('bbox', (0, 0, 100, 30)),
-                            'reasoning': ['ML Model prediction']
-                        })()
+            if self.ocr_method == 'ml':
+                # ML Model only - lazy load if needed
+                if self._load_ml_predictor() and self.ml_predictor:
+                    try:
+                        ml_result = self.ml_predictor.predict(image)
+                        if ml_result and ml_result.get('confidence', 0) > 0.5:
+                            ai_candidate = type('obj', (object,), {
+                                'text': str(ml_result.get('number', '')),
+                                'number': ml_result.get('number', 0),
+                                'confidence': ml_result.get('confidence', 0) * 100,
+                                'bbox': ml_result.get('bbox', (0, 0, 100, 30)),
+                                'reasoning': ['ML Model prediction']
+                            })()
+                            if self.logger:
+                                self.logger.debug(f"🤖 ML Model found: {ai_candidate.text} (confidence: {ai_candidate.confidence:.1f}%)")
+                    except Exception as e:
                         if self.logger:
-                            self.logger.debug(f"🤖 ML Model found: {ai_candidate.text} (confidence: {ai_candidate.confidence:.1f}%)")
-                except Exception as e:
-                    if self.logger:
-                        self.logger.warning(f"ML prediction failed: {e}")
+                            self.logger.warning(f"ML prediction failed: {e}")
             
             elif self.ocr_method == 'auto':
-                # Try ML first, fallback to Paddle
-                if self.ml_predictor:
+                # Try ML first, fallback to Paddle - lazy load if needed
+                if self._load_ml_predictor() and self.ml_predictor:
                     try:
                         ml_result = self.ml_predictor.predict(image)
                         if ml_result and ml_result.get('confidence', 0) > 0.7:  # Higher threshold for auto mode
