@@ -36,6 +36,11 @@ class InteractiveLabeler:
         self.end_y = None
         self.selecting = False
         
+        # Zoom state
+        self.zoom_level = 1.0
+        self.min_zoom = 0.5
+        self.max_zoom = 4.0
+        
         # Image reference keeper to prevent garbage collection
         self._image_keeper = []
         
@@ -116,6 +121,11 @@ class InteractiveLabeler:
         self.image_canvas.bind('<B1-Motion>', self.on_mouse_drag)
         self.image_canvas.bind('<ButtonRelease-1>', self.on_mouse_up)
         
+        # Bind mouse wheel for zoom
+        self.image_canvas.bind('<MouseWheel>', self.on_mouse_wheel)  # Windows/Mac
+        self.image_canvas.bind('<Button-4>', self.on_mouse_wheel)    # Linux scroll up
+        self.image_canvas.bind('<Button-5>', self.on_mouse_wheel)    # Linux scroll down
+        
         # Right panel - Controls
         right_frame = ttk.Frame(main_frame, width=300)
         right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(10, 0))
@@ -174,6 +184,22 @@ Tip: Label 20+ images for best ML accuracy!
         self.label_entry.pack(fill=tk.X)
         self.label_entry.bind('<Return>', lambda e: self.save_and_next())
         self.label_entry.focus()
+        
+        # Zoom controls
+        zoom_frame = ttk.LabelFrame(right_frame, text="Zoom", padding=10)
+        zoom_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.zoom_label = ttk.Label(zoom_frame, text="100%", font=('Arial', 12, 'bold'))
+        self.zoom_label.pack(pady=(0, 5))
+        
+        zoom_buttons = ttk.Frame(zoom_frame)
+        zoom_buttons.pack(fill=tk.X)
+        
+        ttk.Button(zoom_buttons, text="➖ Zoom Out", command=self.zoom_out).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
+        ttk.Button(zoom_buttons, text="🔄 Reset", command=self.zoom_reset).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        ttk.Button(zoom_buttons, text="➕ Zoom In", command=self.zoom_in).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
+        
+        ttk.Label(zoom_frame, text="(or use mouse wheel)", font=('Arial', 8), foreground='gray').pack(pady=(5, 0))
         
         # Buttons
         button_frame = ttk.Frame(right_frame)
@@ -283,13 +309,18 @@ Tip: Label 20+ images for best ML accuracy!
             rgb_image = cv2.resize(rgb_image, (new_w, new_h))
         
         # Store scale for coordinate conversion
-        self.display_scale = scale
+        self.base_scale = scale  # Base scale (fit to screen)
+        self.display_scale = scale  # Current display scale (base * zoom)
         self.display_image = rgb_image.copy()
+        self.original_rgb = rgb_image.copy()  # Keep original for zoom
+        
+        # Apply zoom to image
+        zoomed_rgb = self._apply_zoom(rgb_image)
         
         # Convert to PIL and Tk
         # CRITICAL FIX: Assign to self.photo BEFORE canvas display to prevent GC
         # Explicitly specify master widget to prevent reference issues
-        self.pil_image = Image.fromarray(rgb_image)
+        self.pil_image = Image.fromarray(zoomed_rgb)
         self.photo = ImageTk.PhotoImage(self.pil_image, master=self.image_canvas)  # Use master parameter
         
         # Add multiple references BEFORE displaying to prevent premature GC
@@ -329,11 +360,108 @@ Tip: Label 20+ images for best ML accuracy!
         self.progress_label.config(text=f"Image {self.current_index + 1} of {len(self.image_files)}")
         self.progress_bar['value'] = self.current_index
         
-        # Reset selection
+        # Reset selection and zoom
         self.start_x = self.start_y = self.end_x = self.end_y = None
         self.selection_label.config(text="No region selected", foreground='red')
         self.label_entry.delete(0, tk.END)
         self.label_entry.focus()
+        self.zoom_level = 1.0
+        self.zoom_label.config(text="100%")
+    
+    def _apply_zoom(self, rgb_image):
+        """Apply current zoom level to image"""
+        if self.zoom_level == 1.0:
+            return rgb_image
+        
+        h, w = rgb_image.shape[:2]
+        new_w = int(w * self.zoom_level)
+        new_h = int(h * self.zoom_level)
+        
+        if self.zoom_level > 1.0:
+            # Zoom in - use INTER_CUBIC for better quality
+            zoomed = cv2.resize(rgb_image, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+        else:
+            # Zoom out - use INTER_AREA for better downscaling
+            zoomed = cv2.resize(rgb_image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        
+        return zoomed
+    
+    def zoom_in(self):
+        """Zoom in by 25%"""
+        if self.zoom_level < self.max_zoom:
+            self.zoom_level = min(self.zoom_level * 1.25, self.max_zoom)
+            self._update_zoom()
+    
+    def zoom_out(self):
+        """Zoom out by 25%"""
+        if self.zoom_level > self.min_zoom:
+            self.zoom_level = max(self.zoom_level / 1.25, self.min_zoom)
+            self._update_zoom()
+    
+    def zoom_reset(self):
+        """Reset zoom to 100%"""
+        self.zoom_level = 1.0
+        self._update_zoom()
+    
+    def on_mouse_wheel(self, event):
+        """Handle mouse wheel zoom"""
+        # Determine zoom direction
+        if event.num == 5 or event.delta < 0:  # Scroll down or negative delta
+            self.zoom_out()
+        elif event.num == 4 or event.delta > 0:  # Scroll up or positive delta
+            self.zoom_in()
+    
+    def _update_zoom(self):
+        """Update display with new zoom level"""
+        if not hasattr(self, 'original_rgb'):
+            return
+        
+        # Update zoom label
+        zoom_percent = int(self.zoom_level * 100)
+        self.zoom_label.config(text=f"{zoom_percent}%")
+        
+        # Update display scale
+        self.display_scale = self.base_scale * self.zoom_level
+        
+        # Reapply zoom to original image
+        zoomed_rgb = self._apply_zoom(self.original_rgb)
+        
+        # Update PIL and Tk image
+        self.pil_image = Image.fromarray(zoomed_rgb)
+        self.photo = ImageTk.PhotoImage(self.pil_image, master=self.image_canvas)
+        
+        # Keep references to prevent GC
+        self.photo.image = self.pil_image
+        self._image_keeper.append(self.photo)
+        _IMAGE_CACHE[f'zoom_{self.current_index}_{self.zoom_level}'] = self.photo
+        
+        # Recalculate center position
+        canvas_width = self.image_canvas.winfo_width()
+        canvas_height = self.image_canvas.winfo_height()
+        
+        if canvas_width <= 1:
+            canvas_width = 1000
+        if canvas_height <= 1:
+            canvas_height = 800
+        
+        img_width, img_height = self.pil_image.size
+        self.image_offset_x = max(0, (canvas_width - img_width) // 2)
+        self.image_offset_y = max(0, (canvas_height - img_height) // 2)
+        
+        # Update canvas
+        self.image_canvas.delete("all")
+        self.image_canvas.update_idletasks()
+        self.canvas_image_id = self.image_canvas.create_image(
+            self.image_offset_x,
+            self.image_offset_y,
+            anchor=tk.NW,
+            image=self.photo
+        )
+        self.image_canvas.update()
+        
+        # Redraw selection if exists
+        if self.start_x is not None and self.end_x is not None:
+            self.draw_selection()
     
     def on_mouse_down(self, event):
         """Mouse button pressed - start selection"""
