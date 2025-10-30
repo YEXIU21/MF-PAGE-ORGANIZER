@@ -120,6 +120,32 @@ class OCREngine:
                 self.ocr_method = 'paddle'
             return False
     
+    def _extract_corners(self, image):
+        """Extract corner crops for ML prediction"""
+        import numpy as np
+        from PIL import Image
+        
+        # Convert PIL to numpy if needed
+        if isinstance(image, Image.Image):
+            img_array = np.array(image)
+        else:
+            img_array = image
+            
+        h, w = img_array.shape[:2]
+        
+        # Define corner sizes (15% of image dimensions)
+        crop_h = int(h * 0.15)
+        crop_w = int(w * 0.15)
+        
+        corners = {
+            'top_left': img_array[0:crop_h, 0:crop_w],
+            'top_right': img_array[0:crop_h, w-crop_w:w],
+            'bottom_left': img_array[h-crop_h:h, 0:crop_w],
+            'bottom_right': img_array[h-crop_h:h, w-crop_w:w]
+        }
+        
+        return corners
+    
     def _is_roman_numeral(self, text: str) -> bool:
         """Check if text is a valid roman numeral"""
         pattern = r'^[ivxlcdm]+$'
@@ -303,17 +329,30 @@ class OCREngine:
                 # ML Model only - lazy load if needed
                 if self._load_ml_predictor() and self.ml_predictor:
                     try:
-                        ml_result = self.ml_predictor.predict(image)
-                        if ml_result and ml_result.get('confidence', 0) > 0.5:
+                        # Extract corner crops for ML prediction
+                        corners = self._extract_corners(image)
+                        best_prediction = None
+                        best_conf = 0.0
+                        
+                        for corner_name, corner_img in corners.items():
+                            predicted_num, confidence = self.ml_predictor.predict(corner_img)
+                            if predicted_num and confidence > best_conf:
+                                best_prediction = predicted_num
+                                best_conf = confidence
+                                
+                        if best_prediction and best_conf > 0.5:
                             ai_candidate = type('obj', (object,), {
-                                'text': str(ml_result.get('number', '')),
-                                'number': ml_result.get('number', 0),
-                                'confidence': ml_result.get('confidence', 0) * 100,
-                                'bbox': ml_result.get('bbox', (0, 0, 100, 30)),
-                                'reasoning': ['ML Model prediction']
+                                'text': str(best_prediction),
+                                'number': int(best_prediction) if best_prediction.isdigit() else 0,
+                                'confidence': best_conf * 100,
+                                'bbox': (0, 0, 100, 30),
+                                'reasoning': [f'ML Model prediction (conf: {best_conf:.2f})']
                             })()
                             if self.logger:
                                 self.logger.debug(f"🤖 ML Model found: {ai_candidate.text} (confidence: {ai_candidate.confidence:.1f}%)")
+                        else:
+                            if self.logger:
+                                self.logger.debug(f"🤖 ML Model: No confident prediction (best: {best_conf:.2f})")
                     except Exception as e:
                         if self.logger:
                             self.logger.warning(f"ML prediction failed: {e}")
@@ -322,17 +361,30 @@ class OCREngine:
                 # Try ML first, fallback to Paddle - lazy load if needed
                 if self._load_ml_predictor() and self.ml_predictor:
                     try:
-                        ml_result = self.ml_predictor.predict(image)
-                        if ml_result and ml_result.get('confidence', 0) > 0.7:  # Higher threshold for auto mode
+                        # Extract corner crops for ML prediction
+                        corners = self._extract_corners(image)
+                        best_prediction = None
+                        best_conf = 0.0
+                        
+                        for corner_name, corner_img in corners.items():
+                            predicted_num, confidence = self.ml_predictor.predict(corner_img)
+                            if predicted_num and confidence > best_conf:
+                                best_prediction = predicted_num
+                                best_conf = confidence
+                                
+                        if best_prediction and best_conf > 0.7:  # Higher threshold for auto mode
                             ai_candidate = type('obj', (object,), {
-                                'text': str(ml_result.get('number', '')),
-                                'number': ml_result.get('number', 0),
-                                'confidence': ml_result.get('confidence', 0) * 100,
-                                'bbox': ml_result.get('bbox', (0, 0, 100, 30)),
-                                'reasoning': ['ML Model (Auto mode)']
+                                'text': str(best_prediction),
+                                'number': int(best_prediction) if best_prediction.isdigit() else 0,
+                                'confidence': best_conf * 100,
+                                'bbox': (0, 0, 100, 30),
+                                'reasoning': [f'ML Model (Auto, conf: {best_conf:.2f})']
                             })()
                             if self.logger:
                                 self.logger.debug(f"🤖 ML Model (Auto): {ai_candidate.text} (confidence: {ai_candidate.confidence:.1f}%)")
+                        else:
+                            if self.logger:
+                                self.logger.debug(f"🤖 ML Model: Low confidence ({best_conf:.2f}), falling back to PaddleOCR")
                     except Exception as e:
                         if self.logger:
                             self.logger.debug(f"ML failed, falling back to PaddleOCR: {e}")
