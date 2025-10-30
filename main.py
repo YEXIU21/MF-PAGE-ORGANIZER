@@ -11,11 +11,11 @@ from pathlib import Path
 from typing import List, Optional
 
 
-# ML Training imports (optional)
+# ML Training imports (optional - lazy load to avoid TensorFlow requirement)
 try:
     from core.model_manager import get_model_manager
     from ml_training.interactive_labeler import InteractiveLabeler
-    from ml_training.quick_trainer import QuickTrainer
+    # QuickTrainer imports TensorFlow - load it only when needed
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -492,6 +492,15 @@ class PageReorderCLI:
             # Train model
             print("\n🚀 Training model (this may take 5-10 minutes)...")
             print("Please be patient...\n")
+            
+            # Lazy import QuickTrainer (requires TensorFlow)
+            try:
+                from ml_training.quick_trainer import QuickTrainer
+            except ImportError as e:
+                print(f"❌ Error: TensorFlow required for model training")
+                print(f"   Install with: pip install tensorflow")
+                print(f"   Error: {e}")
+                return
             
             trainer = QuickTrainer()
             trainer.run_full_training(epochs=30)
