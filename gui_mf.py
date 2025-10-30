@@ -320,9 +320,9 @@ class MFPageOrganizerApp:
         ttk.Checkbutton(format_frame, text="Include PDF", 
                        variable=self.include_pdf_var).pack(side=tk.LEFT, padx=(10, 0))
         
-        # OCR Method Selection
-        ocr_frame = ttk.LabelFrame(main_frame, text="🔍 OCR Method", padding="15")
-        ocr_frame.pack(fill=tk.X, pady=(0, 10))
+        # OCR Method Selection (in right column)
+        ocr_label_frame = ttk.LabelFrame(right_column, text="🔍 OCR Method", padding="10")
+        ocr_label_frame.pack(fill=tk.X, pady=(0, 0))
         
         self.ocr_method_var = tk.StringVar(value="paddle")
         
@@ -343,15 +343,15 @@ class MFPageOrganizerApp:
             pass
         
         ttk.Radiobutton(
-            ocr_frame,
-            text="PaddleOCR (Default - Works on most documents)",
+            ocr_label_frame,
+            text="PaddleOCR (Default)",
             variable=self.ocr_method_var,
             value="paddle"
         ).pack(anchor=tk.W, pady=2)
         
         self.ml_radio = ttk.Radiobutton(
-            ocr_frame,
-            text=f"ML Model (Custom - {ml_status_text})",
+            ocr_label_frame,
+            text=f"ML Model ({ml_status_text})",
             variable=self.ocr_method_var,
             value="ml",
             state="normal" if ml_available else "disabled"
@@ -359,19 +359,19 @@ class MFPageOrganizerApp:
         self.ml_radio.pack(anchor=tk.W, pady=2)
         
         ttk.Radiobutton(
-            ocr_frame,
-            text="Auto (Try ML first, fallback to PaddleOCR)",
+            ocr_label_frame,
+            text="Auto (ML → PaddleOCR)",
             variable=self.ocr_method_var,
             value="auto"
         ).pack(anchor=tk.W, pady=2)
         
         # Add explanatory text
         ocr_info = ttk.Label(
-            ocr_frame,
-            text="💡 PaddleOCR works on all documents. ML Model requires training on your book styles.",
-            font=("Arial", 9),
+            ocr_label_frame,
+            text="💡 ML requires training. PaddleOCR works universally.",
+            font=("Arial", 8),
             foreground="gray",
-            wraplength=600
+            wraplength=280
         )
         ocr_info.pack(anchor=tk.W, pady=(5, 0))
         
