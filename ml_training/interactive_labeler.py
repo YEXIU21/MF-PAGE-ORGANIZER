@@ -134,7 +134,10 @@ class InteractiveLabeler:
 
 4. Click "Skip" or press Space to skip this image
 
-5. Selection box shown in RED""")
+5. When done labeling, click "Finish & Train" button
+
+Tip: Label 20+ images for best ML accuracy!
+""") 
         instructions.config(state=tk.DISABLED)
         
         # Progress
@@ -184,6 +187,18 @@ class InteractiveLabeler:
         
         self.prev_button = ttk.Button(button_frame, text="⏮ Previous", command=self.previous_image)
         self.prev_button.pack(fill=tk.X, pady=(0, 5))
+        
+        # Separator
+        ttk.Separator(button_frame, orient='horizontal').pack(fill=tk.X, pady=10)
+        
+        # Finish button - allows user to stop and proceed to training
+        self.finish_button = ttk.Button(
+            button_frame, 
+            text="🎯 Finish & Train", 
+            command=self.finish_labeling,
+            style='Accent.TButton'
+        )
+        self.finish_button.pack(fill=tk.X, pady=(0, 5))
         
         # Stats
         stats_frame = ttk.LabelFrame(right_frame, text="Statistics", padding=10)
@@ -477,6 +492,42 @@ class InteractiveLabeler:
                 stats_str += f"  {label}: {count}\n"
         
         self.stats_text.insert('1.0', stats_str)
+    
+    def finish_labeling(self):
+        """User clicks Finish & Train button - ready to proceed with training"""
+        # Check if user has labeled enough images
+        if self.stats['total_labeled'] < 10:
+            result = messagebox.askyesno(
+                "Few Training Examples",
+                f"You've only labeled {self.stats['total_labeled']} images.\n\n"
+                f"Recommended: 20+ images for good ML accuracy.\n\n"
+                f"Continue with training anyway?"
+            )
+            if not result:
+                return  # User wants to label more
+        
+        # Confirm finish
+        result = messagebox.askyesno(
+            "Finish Labeling?",
+            f"Ready to finish and train the model?\n\n"
+            f"✓ Labeled: {self.stats['total_labeled']} images\n"
+            f"✓ Unique labels: {len(self.stats['labels_created'])}\n\n"
+            f"Training will start after you click Yes."
+        )
+        
+        if result:
+            # Save stats and close
+            stats_file = self.output_folder / "labeling_stats.json"
+            with open(stats_file, 'w') as f:
+                json.dump(self.stats, f, indent=2)
+            
+            messagebox.showinfo(
+                "Labeling Complete!",
+                f"✅ Saved {self.stats['total_labeled']} labeled images\n\n"
+                f"Training will start now..."
+            )
+            
+            self.root.destroy()
     
     def on_complete(self):
         """All images processed"""
