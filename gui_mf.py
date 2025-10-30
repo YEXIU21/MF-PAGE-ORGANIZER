@@ -1415,9 +1415,10 @@ All rights reserved.
                 
             except Exception as e:
                 progress.close()
-                self.root.after(100, lambda: messagebox.showerror(
+                error_msg = str(e)  # Capture error message immediately
+                self.root.after(100, lambda msg=error_msg: messagebox.showerror(
                     "Training Failed",
-                    f"Model training failed: {e}\n\n"
+                    f"Model training failed: {msg}\n\n"
                     "Will use PaddleOCR instead.\n\n"
                     "You can try teaching again from Settings menu."
                 ))
