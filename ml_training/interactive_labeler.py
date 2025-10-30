@@ -266,6 +266,8 @@ class InteractiveLabeler:
         # Convert and display
         pil_image = Image.fromarray(display_copy)
         self.photo = ImageTk.PhotoImage(pil_image)
+        self.photo.image = pil_image  # Keep reference to prevent GC
+        self.image_label.image = self.photo  # CRITICAL: Keep reference on widget!
         self.image_label.config(image=self.photo)
     
     def save_and_next(self):
