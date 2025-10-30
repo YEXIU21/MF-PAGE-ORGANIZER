@@ -85,7 +85,7 @@ class PageReorderCLI:
         # ═══════════════════════════════════════════════════════════
         # ML MODEL CHECK - Prompt user about teaching if no model
         # ═══════════════════════════════════════════════════════════
-        if ML_AVAILABLE and not args.skip_ml_prompt:
+        if ML_AVAILABLE and not getattr(args, 'skip_ml_prompt', False):
             try:
                 self.model_manager = get_model_manager()
                 
