@@ -21,7 +21,7 @@ class QuickTrainer:
     """Fast trainer for page number detection model"""
     
     def __init__(self, data_dir: str = "ml_training/manual_training_data"):
-        self.data_dir = Path(data_dir) / "corners"
+        self.data_dir = Path(data_dir) / "corners_digits"  # Use digit-level reorganized data
         self.model = None
         self.class_names = []
         self.history = None
@@ -280,10 +280,10 @@ def main():
     args = parser.parse_args()
     
     # Check if data exists
-    data_path = Path(args.data) / "corners"
+    data_path = Path(args.data) / "corners_digits"  # Check for reorganized digit-level data
     if not data_path.exists():
         print(f"❌ Error: Training data not found at {data_path}")
-        print("\nPlease run the interactive labeler first:")
+        print("\nPlease run reorganization first: python ml_training/reorganize_to_digits.py --live")
         print("  python ml_training/interactive_labeler.py <image_folder>")
         return
     

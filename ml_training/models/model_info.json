@@ -1,11 +1,11 @@
 {
-  "num_classes": 448,
+  "num_classes": 16,
   "input_shape": [
     100,
     100,
     1
   ],
-  "trained_date": "2025-10-31 17:12:05",
-  "final_train_acc": 0.0,
-  "final_val_acc": 0.0
+  "trained_date": "2025-10-31 17:37:13",
+  "final_train_acc": 0.13502109050750732,
+  "final_val_acc": 0.14345991611480713
 }
