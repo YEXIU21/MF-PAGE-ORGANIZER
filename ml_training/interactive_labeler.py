@@ -179,6 +179,23 @@ Tip: Zoom 200-300%, pan to corner, select tight!
         self.progress_bar['maximum'] = len(self.image_files)
         self.progress_bar['value'] = 0
         
+        # Jump to Image
+        jump_frame = ttk.LabelFrame(right_frame, text="Jump to Image", padding=10)
+        jump_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        jump_input_frame = ttk.Frame(jump_frame)
+        jump_input_frame.pack(fill=tk.X)
+        
+        ttk.Label(jump_input_frame, text="Go to #:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.jump_entry = ttk.Entry(jump_input_frame, width=10, font=('Arial', 12))
+        self.jump_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.jump_entry.bind('<Return>', lambda e: self.jump_to_image())
+        
+        ttk.Button(jump_input_frame, text="🎯 Jump", command=self.jump_to_image, width=8).pack(side=tk.LEFT)
+        
+        ttk.Label(jump_frame, text=f"(1 to {len(self.image_files)})", font=('Arial', 8), foreground='gray').pack(pady=(3, 0))
+        
         # Current image info
         info_frame = ttk.LabelFrame(right_frame, text="Current Image", padding=10)
         info_frame.pack(fill=tk.X, pady=(0, 10))
@@ -664,6 +681,50 @@ Tip: Zoom 200-300%, pan to corner, select tight!
             self.load_current_image()
         else:
             messagebox.showinfo("First Image", "Already at the first image!")
+    
+    def jump_to_image(self):
+        """Jump to a specific image number"""
+        try:
+            # Get the image number from entry
+            jump_num_str = self.jump_entry.get().strip()
+            
+            if not jump_num_str:
+                messagebox.showwarning("No Input", "Please enter an image number!")
+                self.jump_entry.focus()
+                return
+            
+            jump_num = int(jump_num_str)
+            
+            # Validate range (1-indexed for user, 0-indexed internally)
+            if jump_num < 1 or jump_num > len(self.image_files):
+                messagebox.showerror(
+                    "Invalid Number", 
+                    f"Please enter a number between 1 and {len(self.image_files)}!"
+                )
+                self.jump_entry.select_range(0, tk.END)
+                self.jump_entry.focus()
+                return
+            
+            # Convert to 0-indexed
+            new_index = jump_num - 1
+            
+            # Update index and load
+            self.current_index = new_index
+            self.load_current_image()
+            
+            # Clear jump entry
+            self.jump_entry.delete(0, tk.END)
+            
+            # Focus back to label entry for quick labeling
+            self.label_entry.focus()
+            
+        except ValueError:
+            messagebox.showerror(
+                "Invalid Input", 
+                "Please enter a valid number!"
+            )
+            self.jump_entry.select_range(0, tk.END)
+            self.jump_entry.focus()
     
     def update_stats_display(self):
         """Update statistics display"""
