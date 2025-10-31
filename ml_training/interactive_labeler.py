@@ -624,24 +624,34 @@ Tip: Zoom 200-300%, pan to corner, select tight!
             self.label_entry.focus()
             return
         
-        # Get crop coordinates (directly from displayed image - no conversion needed)
-        x1 = int(min(self.start_x, self.end_x))
-        y1 = int(min(self.start_y, self.end_y))
-        x2 = int(max(self.start_x, self.end_x))
-        y2 = int(max(self.start_y, self.end_y))
+        # Get crop coordinates from displayed image
+        disp_x1 = int(min(self.start_x, self.end_x))
+        disp_y1 = int(min(self.start_y, self.end_y))
+        disp_x2 = int(max(self.start_x, self.end_x))
+        disp_y2 = int(max(self.start_y, self.end_y))
         
-        # Convert displayed RGB to BGR for OpenCV
-        displayed_bgr = cv2.cvtColor(self.displayed_zoomed_rgb, cv2.COLOR_RGB2BGR)
+        # Get sizes for coordinate conversion
+        disp_h, disp_w = self.displayed_zoomed_rgb.shape[:2]  # Displayed image size
+        orig_h, orig_w = self.current_cv_image.shape[:2]      # Original image size
         
-        # Ensure coordinates are within bounds of displayed image
-        h, w = displayed_bgr.shape[:2]
-        x1 = max(0, min(x1, w-1))
-        x2 = max(0, min(x2, w))
-        y1 = max(0, min(y1, h-1))
-        y2 = max(0, min(y2, h))
+        # Calculate scale ratio (original / displayed)
+        scale_x = orig_w / disp_w
+        scale_y = orig_h / disp_h
         
-        # Crop region from what user actually sees
-        crop = displayed_bgr[y1:y2, x1:x2]
+        # Convert coordinates to original image space
+        orig_x1 = int(disp_x1 * scale_x)
+        orig_y1 = int(disp_y1 * scale_y)
+        orig_x2 = int(disp_x2 * scale_x)
+        orig_y2 = int(disp_y2 * scale_y)
+        
+        # Ensure coordinates are within bounds of original image
+        orig_x1 = max(0, min(orig_x1, orig_w-1))
+        orig_x2 = max(0, min(orig_x2, orig_w))
+        orig_y1 = max(0, min(orig_y1, orig_h-1))
+        orig_y2 = max(0, min(orig_y2, orig_h))
+        
+        # Crop from original high-resolution image for best quality
+        crop = self.current_cv_image[orig_y1:orig_y2, orig_x1:orig_x2]
         
         if crop.size == 0:
             messagebox.showerror("Invalid Selection", "Selected region is too small!")
