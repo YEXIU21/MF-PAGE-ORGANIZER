@@ -135,9 +135,11 @@ class QuickTrainer:
     def create_data_augmentation(self):
         """Create data augmentation to improve training"""
         return keras.Sequential([
-            layers.RandomRotation(0.05),  # ±5 degrees
-            layers.RandomZoom(0.1),  # ±10% zoom
-            layers.RandomContrast(0.1)  # ±10% contrast
+            layers.RandomRotation(0.1),  # ±10 degrees (increased)
+            layers.RandomZoom(0.15),  # ±15% zoom (increased)
+            layers.RandomTranslation(0.1, 0.1),  # ±10% shift (new)
+            layers.RandomContrast(0.2),  # ±20% contrast (increased)
+            layers.RandomBrightness(0.2)  # ±20% brightness (new)
         ])
     
     def train(self, X_train, X_val, y_train, y_val, epochs: int = 30):
@@ -147,11 +149,23 @@ class QuickTrainer:
         print(f"   Batch size: 16")
         print()
         
+        # Calculate class weights to handle imbalance
+        unique, counts = np.unique(y_train, return_counts=True)
+        total = len(y_train)
+        class_weights = {i: total / (len(unique) * count) for i, count in zip(unique, counts)}
+        
+        print(f"📊 Class distribution:")
+        for cls_idx, count in zip(unique, counts):
+            cls_name = self.class_names[cls_idx]
+            weight = class_weights[cls_idx]
+            print(f"   {cls_name:15}: {count:3} samples (weight: {weight:.2f})")
+        print()
+        
         # Callbacks
         callbacks = [
             keras.callbacks.EarlyStopping(
                 monitor='val_accuracy',
-                patience=5,
+                patience=7,  # Increased patience for better convergence
                 restore_best_weights=True,
                 verbose=1
             ),
@@ -163,20 +177,29 @@ class QuickTrainer:
             )
         ]
         
-        # Data augmentation
+        # Create augmentation model
         augmentation = self.create_data_augmentation()
         
-        # Augment training data
-        X_train_aug = augmentation(X_train, training=True)
+        # Create training dataset with augmentation
+        train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+        train_ds = train_ds.shuffle(1000)
+        train_ds = train_ds.batch(16)
+        train_ds = train_ds.map(lambda x, y: (augmentation(x, training=True), y))
+        train_ds = train_ds.prefetch(tf.data.AUTOTUNE)
+        
+        # Create validation dataset (no augmentation)
+        val_ds = tf.data.Dataset.from_tensor_slices((X_val, y_val))
+        val_ds = val_ds.batch(16)
+        val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
         
         # Train
         start_time = time.time()
         
         self.history = self.model.fit(
-            X_train_aug, y_train,
-            validation_data=(X_val, y_val),
+            train_ds,
+            validation_data=val_ds,
             epochs=epochs,
-            batch_size=16,
+            class_weight=class_weights,  # Apply class weighting
             callbacks=callbacks,
             verbose=1
         )

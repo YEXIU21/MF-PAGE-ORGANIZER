@@ -1,11 +1,5 @@
 {
-  "num_classes": 16,
-  "input_shape": [
-    100,
-    100,
-    1
-  ],
-  "trained_date": "2025-10-31 17:37:13",
-  "final_train_acc": 0.13502109050750732,
-  "final_val_acc": 0.14345991611480713
+  "classes": 16,
+  "accuracy": 26.582279801368713,
+  "type": "transfer_learning_mobilenetv2"
 }
