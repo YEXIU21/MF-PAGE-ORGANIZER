@@ -337,7 +337,7 @@ class MFPageOrganizerApp:
             manager = get_model_manager()
             if manager.model_exists():
                 ml_available = True
-                model_info = manager.get_info()
+                model_info = manager.get_model_info()
                 if model_info and 'accuracy' in model_info:
                     ml_status_text = f"Accuracy: {model_info['accuracy']:.1f}%"
                 else:
@@ -1179,7 +1179,7 @@ All rights reserved.
             
             if manager.model_exists():
                 # Model now available - enable button
-                model_info = manager.get_info()
+                model_info = manager.get_model_info()
                 if model_info and 'accuracy' in model_info:
                     status_text = f"Accuracy: {model_info['accuracy']:.1f}%"
                 else:
